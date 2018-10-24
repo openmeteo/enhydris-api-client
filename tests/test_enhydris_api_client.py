@@ -1,36 +1,7 @@
-"""
-In order to run these tests, you must specify the
-PTHELMA_TEST_ENHYDRIS_API variable to contain a json-formatted string
-of parameters, like this:
-
-    { "base_url": "http://localhost:8001/",
-      "user": "admin",
-      "password": "topsecret",
-      "station_id": 1334,
-      "variable_id": 1,
-      "unit_of_measurement_id": 1,
-      "time_zone_id": 1,
-      "owner_id": 5
-    }
-
-The parameters station_id, variable_id, unit_of_measurement_id,
-time_zone_id and owner_id are used when test timeseries or stations are
-created.
-
-Note that some other testing modules may also use
-PTHELMA_TEST_ENHYDRIS_API, but might require additional parameters.
-
-Don't use a production database for that; some testing functionality
-may write to the database. Although things are normally cleaned up
-(e.g. test timeseries created are deleted), id serial numbers will be
-affected and things might not be cleaned up if there is an error.
-"""
-
-import json
-import os
 import textwrap
+from datetime import datetime
 from io import StringIO
-from unittest import TestCase, skipUnless
+from unittest import TestCase, mock
 
 import pandas as pd
 import requests
@@ -38,218 +9,227 @@ import requests
 import enhydris_api_client
 
 
-@skipUnless(os.getenv("PTHELMA_TEST_ENHYDRIS_API"), "set PTHELMA_TEST_ENHYDRIS_API")
-class LoginTestCase(TestCase):
-    def test_login(self):
-        v = json.loads(os.getenv("PTHELMA_TEST_ENHYDRIS_API"))
-        base_url, user, password = v["base_url"], v["user"], v["password"]
+class SimpleLoginTestCase(TestCase):
+    @mock.patch(
+        "requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}}
+    )
+    @mock.patch(
+        "requests.post", **{"return_value.cookies": {"acookie": "a cookie value"}}
+    )
+    def setUp(self, mock_requests_post, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.mock_requests_post = mock_requests_post
+        self.response_cookies = enhydris_api_client.login(
+            "https://mydomain.com", "admin", "topsecret"
+        )
 
-        # Verify we are logged out
-        r = requests.get(base_url)
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue("Login" in r.text)
-        self.assertFalse("Logout" in r.text)
+    def test_makes_post_request(self):
+        self.mock_requests_post.assert_called_once_with(
+            "https://mydomain.com/accounts/login/",
+            headers={
+                "X-CSRFToken": "reallysecret",
+                "Referer": "https://mydomain.com/accounts/login/",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            data="username=admin&password=topsecret",
+            cookies={"csrftoken": "reallysecret"},
+            allow_redirects=False,
+        )
 
-        # Now login and verify we're logged on
-        cookies = enhydris_api_client.login(base_url, user, password)
-        r = requests.get(base_url, cookies=cookies)
-        self.assertEqual(r.status_code, 200)
-        self.assertFalse("Login" in r.text)
-        self.assertTrue("Logout" in r.text)
+    def test_checks_response_code_for_get(self):
+        self.mock_requests_get.return_value.raise_for_status.assert_called_once_with()
+
+    def test_checks_response_code_for_post(self):
+        self.mock_requests_post.return_value.raise_for_status.assert_called_once_with()
+
+    def test_returns_cookies(self):
+        self.assertEqual(self.response_cookies, {"acookie": "a cookie value"})
 
 
-@skipUnless(
-    os.getenv("PTHELMA_TEST_ENHYDRIS_API_HTTPS"), "set PTHELMA_TEST_ENHYDRIS_API_HTTPS"
-)
-class HttpsLoginTestCase(TestCase):
-    def test_login(self):
-        v = json.loads(os.getenv("PTHELMA_TEST_ENHYDRIS_API_HTTPS"))
-        if v["base_url"][:5] != "https":
-            raise Exception(
-                "Set PTHELMA_TEST_ENHYDRIS_API_HTTPS with an " "https base_url"
+class LoginWithEmptyUsernameTestCase(TestCase):
+    @mock.patch("requests.get")
+    @mock.patch("requests.post")
+    def setUp(self, mock_requests_post, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.mock_requests_post = mock_requests_post
+        self.response_cookies = enhydris_api_client.login(
+            "https://mydomain.com", "", "useless_password"
+        )
+
+    def test_does_not_make_get_request(self):
+        self.mock_requests_get.assert_not_called()
+
+    def test_does_not_make_post_request(self):
+        self.mock_requests_post.assert_not_called()
+
+    def test_returns_empty(self):
+        self.assertEqual(self.response_cookies, {})
+
+
+class GetModelTestCase(TestCase):
+    @mock.patch(
+        "requests.get", **{"return_value.json.return_value": {"hello": "world"}}
+    )
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.response_data = enhydris_api_client.get_model(
+            "https://mydomain.com", {"acookie": "a cookie value"}, "Station", 42
+        )
+
+    def test_makes_request(self):
+        self.mock_requests_get.assert_called_once_with(
+            "https://mydomain.com/api/Station/42/",
+            cookies={"acookie": "a cookie value"},
+        )
+
+    def test_checks_response_code(self):
+        self.mock_requests_get.return_value.raise_for_status.assert_called_once_with()
+
+    def test_returns_data(self):
+        self.assertEqual(self.response_data, {"hello": "world"})
+
+
+class PostModelTestCase(TestCase):
+    @mock.patch("requests.post", **{"return_value.json.return_value": {"id": 42}})
+    def setUp(self, mock_requests_post):
+        self.mock_requests_post = mock_requests_post
+        self.response_data = enhydris_api_client.post_model(
+            "https://mydomain.com",
+            {"csrftoken": "reallysecret"},
+            "Station",
+            data={"location": "Syria"},
+        )
+
+    def test_makes_request(self):
+        self.mock_requests_post.assert_called_once_with(
+            "https://mydomain.com/api/Station/",
+            headers={
+                "X-CSRFToken": "reallysecret",
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            cookies={"csrftoken": "reallysecret"},
+            data={"location": "Syria"},
+        )
+
+    def test_checks_response_code(self):
+        self.mock_requests_post.return_value.raise_for_status.assert_called_once_with()
+
+    def test_returns_id(self):
+        self.assertEqual(self.response_data, 42)
+
+
+class DeleteModelTestCase(TestCase):
+    @mock.patch("requests.delete", **{"return_value.status_code": 204})
+    def test_makes_request(self, mock_requests_delete):
+        enhydris_api_client.delete_model(
+            "https://mydomain.com", {"csrftoken": "reallysecret"}, "Station", 42
+        )
+        mock_requests_delete.assert_called_once_with(
+            "https://mydomain.com/api/Station/42/",
+            headers={"X-CSRFToken": "reallysecret"},
+            cookies={"csrftoken": "reallysecret"},
+        )
+
+    @mock.patch("requests.delete", **{"return_value.status_code": 404})
+    def test_raises_exception_on_error(self, mock_requests_delete):
+        with self.assertRaises(requests.exceptions.HTTPError):
+            enhydris_api_client.delete_model(
+                "https://mydomain.com", {"csrftoken": "reallysecret"}, "Station", 42
             )
-        base_url, user, password = v["base_url"], v["user"], v["password"]
-
-        # Verify we are logged out
-        r = requests.get(base_url)
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue("Login" in r.text)
-        self.assertFalse("Logout" in r.text)
-
-        # Now login and verify we're logged on
-        cookies = enhydris_api_client.login(base_url, user, password)
-        r = requests.get(base_url, cookies=cookies)
-        self.assertEqual(r.status_code, 200)
-        self.assertFalse("Login" in r.text)
-        self.assertTrue("Logout" in r.text)
 
 
-def get_after_blank_line(s):
-    r"""
-    This helper function returns all content of s that follows the
-    first empty line; it also removes \r from line endings.
+test_timeseries_csv = textwrap.dedent(
+    """\
+    2014-01-01 08:00,11,
+    2014-01-02 08:00,12,
+    2014-01-03 08:00,13,
+    2014-01-04 08:00,14,
+    2014-01-05 08:00,15,
     """
-    lines = s.splitlines(True)
-    i = 0
-    while True:
-        if not lines[i].strip():
-            break
-        i += 1
-    first_line = i + 1
-    lines = lines[first_line:]
-    return "".join([x.replace("\r", "") for x in lines])
+)
+test_timeseries_pd = pd.read_csv(
+    StringIO(test_timeseries_csv), header=None, parse_dates=True, index_col=0
+)
+test_timeseries_csv_top = "".join(test_timeseries_csv.splitlines(keepends=True)[:-1])
+test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1][0]
 
 
-@skipUnless(os.getenv("PTHELMA_TEST_ENHYDRIS_API"), "set PTHELMA_TEST_ENHYDRIS_API")
 class ReadTsDataTestCase(TestCase):
-    test_timeseries = textwrap.dedent(
-        """\
-                                      2014-01-01 08:00,11,
-                                      2014-01-02 08:00,12,
-                                      2014-01-03 08:00,13,
-                                      2014-01-04 08:00,14,
-                                      2014-01-05 08:00,15,
-                                      """
-    )
-
-    def setUp(self):
-        # Login
-        v = json.loads(os.getenv("PTHELMA_TEST_ENHYDRIS_API"))
-        self.base_url = v["base_url"]
-        self.cookies = enhydris_api_client.login(
-            v["base_url"], v["user"], v["password"]
+    @mock.patch("requests.get", **{"return_value.text": test_timeseries_csv})
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.response_data = enhydris_api_client.read_tsdata(
+            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
         )
 
-        # Create a time series in the database
-        j = {
-            "gentity": v["station_id"],
-            "variable": v["variable_id"],
-            "unit_of_measurement": v["unit_of_measurement_id"],
-            "time_zone": v["time_zone_id"],
-            "precision": 0,
-        }
-        self.ts_id = enhydris_api_client.post_model(
-            self.base_url, self.cookies, "Timeseries", j
+    def test_makes_request(self):
+        self.mock_requests_get.assert_called_once_with(
+            "https://mydomain.com/api/tsdata/42/", cookies={"csrftoken": "reallysecret"}
         )
 
-        # Upload some data
-        self.ts = pd.read_csv(
-            StringIO(self.test_timeseries), header=None, parse_dates=True, index_col=0
-        )
-        enhydris_api_client.post_tsdata(
-            self.base_url, self.cookies, self.ts_id, self.ts
-        )
+    def test_checks_response_code(self):
+        self.mock_requests_get.return_value.raise_for_status.assert_called_once_with()
 
-    def test_read_tsdata(self):
-        ts_db = enhydris_api_client.read_tsdata(self.base_url, self.cookies, self.ts_id)
-        pd.testing.assert_frame_equal(ts_db, self.ts)
+    def test_returns_data(self):
+        pd.testing.assert_frame_equal(self.response_data, test_timeseries_pd)
 
 
-@skipUnless(os.getenv("PTHELMA_TEST_ENHYDRIS_API"), "set PTHELMA_TEST_ENHYDRIS_API")
 class PostTsDataTestCase(TestCase):
-    test_timeseries = textwrap.dedent(
-        """\
-                                      2014-01-01 08:00,11,
-                                      2014-01-02 08:00,12,
-                                      2014-01-03 08:00,13,
-                                      2014-01-04 08:00,14,
-                                      2014-01-05 08:00,15,
-                                      """
-    )
-    test_timeseries_top = "".join(test_timeseries.splitlines(True)[:-1])
-    test_timeseries_bottom = "".join(test_timeseries.splitlines(True)[-1])
-
-    def test_post_tsdata(self):
-        v = json.loads(os.getenv("PTHELMA_TEST_ENHYDRIS_API"))
-        cookies = enhydris_api_client.login(v["base_url"], v["user"], v["password"])
-
-        # Create a time series in the database
-        j = {
-            "gentity": v["station_id"],
-            "variable": v["variable_id"],
-            "unit_of_measurement": v["unit_of_measurement_id"],
-            "time_zone": v["time_zone_id"],
-            "precision": 0,
-        }
-        ts_id = enhydris_api_client.post_model(v["base_url"], cookies, "Timeseries", j)
-
-        # Now upload some data
-        ts = pd.read_csv(
-            StringIO(self.test_timeseries_top),
-            header=None,
-            parse_dates=True,
-            index_col=0,
+    @mock.patch("requests.post")
+    def setUp(self, mock_requests_post):
+        self.mock_requests_post = mock_requests_post
+        enhydris_api_client.post_tsdata(
+            "https://mydomain.com",
+            {"csrftoken": "reallysecret"},
+            42,
+            test_timeseries_pd,
         )
-        enhydris_api_client.post_tsdata(v["base_url"], cookies, ts_id, ts)
 
-        # Read and check the time series
-        url = enhydris_api_client.urljoin(
-            v["base_url"], "timeseries/d/{}/download/".format(ts_id)
+    def test_makes_request(self):
+        f = StringIO()
+        test_timeseries_pd.to_csv(f, header=False)
+        self.mock_requests_post.assert_called_once_with(
+            "https://mydomain.com/api/tsdata/42/",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRFToken": "reallysecret",
+            },
+            cookies={"csrftoken": "reallysecret"},
+            data={"timeseries_records": f.getvalue()},
         )
-        r = requests.get(url, cookies=cookies)
-        r.raise_for_status()
-        self.assertEqual(get_after_blank_line(r.text), self.test_timeseries_top)
 
-        # Upload more data
-        ts = pd.read_csv(
-            StringIO(self.test_timeseries_bottom),
-            header=None,
-            parse_dates=True,
-            index_col=0,
-        )
-        enhydris_api_client.post_tsdata(v["base_url"], cookies, ts_id, ts)
-
-        # Read and check the time series
-        url = enhydris_api_client.urljoin(
-            v["base_url"], "timeseries/d/{}/download/".format(ts_id)
-        )
-        r = requests.get(url, cookies=cookies)
-        r.raise_for_status()
-        self.assertEqual(get_after_blank_line(r.text), self.test_timeseries)
+    def test_checks_response_code(self):
+        self.mock_requests_post.return_value.raise_for_status.assert_called_once_with()
 
 
-@skipUnless(os.getenv("PTHELMA_TEST_ENHYDRIS_API"), "set PTHELMA_TEST_ENHYDRIS_API")
 class GetTsEndDateTestCase(TestCase):
-    test_timeseries = textwrap.dedent(
-        """\
-                                      2014-01-01 08:00,11,
-                                      2014-01-02 08:00,12,
-                                      2014-01-03 08:00,13,
-                                      2014-01-04 08:00,14,
-                                      2014-01-05 08:00,15,
-                                      """
-    )
-
-    def test_get_ts_end_date(self):
-        v = json.loads(os.getenv("PTHELMA_TEST_ENHYDRIS_API"))
-        cookies = enhydris_api_client.login(v["base_url"], v["user"], v["password"])
-
-        # Create a time series in the database
-        j = {
-            "gentity": v["station_id"],
-            "variable": v["variable_id"],
-            "unit_of_measurement": v["unit_of_measurement_id"],
-            "time_zone": v["time_zone_id"],
-        }
-        ts_id = enhydris_api_client.post_model(v["base_url"], cookies, "Timeseries", j)
-
-        # Get its last date while it has no data
-        date = enhydris_api_client.get_ts_end_date(v["base_url"], cookies, ts_id)
-        self.assertEqual(date.isoformat(), "0001-01-01T00:00:00")
-
-        # Now upload some data
-        ts = pd.read_csv(StringIO(self.test_timeseries), parse_dates=True, index_col=0)
-        enhydris_api_client.post_tsdata(v["base_url"], cookies, ts_id, ts)
-
-        # Get its last date
-        date = enhydris_api_client.get_ts_end_date(v["base_url"], cookies, ts_id)
-        self.assertEqual(date.isoformat(), "2014-01-05T08:00:00")
-
-        # Get the last date of a nonexistent time series
-        self.assertRaises(
-            requests.HTTPError,
-            enhydris_api_client.get_ts_end_date,
-            v["base_url"],
-            cookies,
-            ts_id + 1,
+    @mock.patch("requests.get", **{"return_value.text": test_timeseries_csv})
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.response_date = enhydris_api_client.get_ts_end_date(
+            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
         )
+
+    def test_makes_request(self):
+        self.mock_requests_get.assert_called_once_with(
+            "https://mydomain.com/timeseries/d/42/bottom/",
+            cookies={"csrftoken": "reallysecret"},
+        )
+
+    def test_checks_response_code(self):
+        self.mock_requests_get.return_value.raise_for_status.assert_called_once_with()
+
+    def test_returns_date(self):
+        self.assertEqual(self.response_date, datetime(2014, 1, 5, 8, 0))
+
+
+class GetTsEndDateEmptyTestCase(TestCase):
+    @mock.patch("requests.get", **{"return_value.text": ""})
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.response_date = enhydris_api_client.get_ts_end_date(
+            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
+        )
+
+    def test_returns_date(self):
+        self.assertEqual(self.response_date, datetime(1, 1, 1))
