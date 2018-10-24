@@ -29,11 +29,11 @@ affected and things might not be cleaned up if there is an error.
 import json
 import os
 import textwrap
+from io import StringIO
 from unittest import TestCase, skipUnless
 
 import pandas as pd
 import requests
-from six import StringIO
 
 import enhydris_api_client
 

@@ -1,5 +1,5 @@
 from datetime import datetime
-from six import StringIO
+from io import StringIO
 
 import iso8601
 import pandas as pd
