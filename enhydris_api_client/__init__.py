@@ -79,9 +79,8 @@ def delete_model(base_url, session_cookies, model, id):
 
 
 def read_tsdata(base_url, session_cookies, ts_id):
-    r = requests.get(
-        base_url + "api/tsdata/{0}/".format(ts_id), cookies=session_cookies
-    )
+    url = urljoin(base_url, "api/tsdata/{0}/".format(ts_id))
+    r = requests.get(url, cookies=session_cookies)
     r.raise_for_status()
     return pd.read_csv(StringIO(r.text), header=None, parse_dates=True, index_col=0)
 
@@ -94,7 +93,7 @@ def post_tsdata(base_url, session_cookies, timeseries_id, ts):
         url,
         data={"timeseries_records": f.getvalue()},
         headers={
-            "Content-type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/x-www-form-urlencoded",
             "X-CSRFToken": session_cookies["csrftoken"],
         },
         cookies=session_cookies,
@@ -104,9 +103,8 @@ def post_tsdata(base_url, session_cookies, timeseries_id, ts):
 
 
 def get_ts_end_date(base_url, session_cookies, ts_id):
-    r = requests.get(
-        "{}timeseries/d/{}/bottom/".format(base_url, ts_id), cookies=session_cookies
-    )
+    url = urljoin(base_url, "timeseries/d/{}/bottom/".format(ts_id))
+    r = requests.get(url, cookies=session_cookies)
     r.raise_for_status()
     lines = r.text.splitlines()
     lines.reverse()
