@@ -6,7 +6,7 @@ from unittest import TestCase, mock
 import pandas as pd
 import requests
 
-import enhydris_api_client
+from enhydris_api_client import EnhydrisApiClient
 
 
 def rpatch(*args, **kwargs):
@@ -29,12 +29,17 @@ def rpatch(*args, **kwargs):
     return mock.patch(*args, **kwargs)
 
 
-class SimpleLoginTestCase(TestCase):
+class SuccessfulLoginTestCase(TestCase):
     @rpatch("requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
-    @rpatch("requests.post")
-    def test_makes_post_request(self, mock_requests_post, mock_requests_get):
-        enhydris_api_client.login("https://mydomain.com", "admin", "topsecret")
-        mock_requests_post.assert_called_once_with(
+    @rpatch("requests.post", **{"return_value.cookies": {"acookie": "a cookie value"}})
+    def setUp(self, mock_requests_post, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.mock_requests_post = mock_requests_post
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.login("admin", "topsecret")
+
+    def test_makes_post_request(self):
+        self.mock_requests_post.assert_called_once_with(
             "https://mydomain.com/accounts/login/",
             headers={
                 "X-CSRFToken": "reallysecret",
@@ -46,23 +51,25 @@ class SimpleLoginTestCase(TestCase):
             allow_redirects=False,
         )
 
+    def test_keeps_cookies(self):
+        self.assertEqual(self.client.cookies, {"acookie": "a cookie value"})
+
+
+class FailedLoginTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
     @rpatch("requests.get", **{"return_value.status_code": 404})
     @rpatch("requests.post")
-    def test_checks_response_code_for_get(self, mock_requests_post, mock_requests_get):
+    def test_raises_exception_on_get_failure(self, mock_post, mock_get):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.login("https://mydomain.com", "admin", "topsecret")
+            self.client.login("admin", "topsecret")
 
     @rpatch("requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
     @rpatch("requests.post", **{"return_value.status_code": 404})
-    def test_checks_response_code_for_post(self, mock_requests_post, mock_requests_get):
+    def test_raises_exception_on_post_failure(self, mock_post, mock_get):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.login("https://mydomain.com", "admin", "topsecret")
-
-    @rpatch("requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
-    @rpatch("requests.post", **{"return_value.cookies": {"acookie": "a cookie value"}})
-    def test_returns_cookies(self, mock_requests_post, mock_requests_get):
-        c = enhydris_api_client.login("https://mydomain.com", "admin", "topsecret")
-        self.assertEqual(c, {"acookie": "a cookie value"})
+            self.client.login("admin", "topsecret")
 
 
 class LoginWithEmptyUsernameTestCase(TestCase):
@@ -71,9 +78,8 @@ class LoginWithEmptyUsernameTestCase(TestCase):
     def setUp(self, mock_requests_post, mock_requests_get):
         self.mock_requests_get = mock_requests_get
         self.mock_requests_post = mock_requests_post
-        self.response_cookies = enhydris_api_client.login(
-            "https://mydomain.com", "", "useless_password"
-        )
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.login("", "useless_password")
 
     def test_does_not_make_get_request(self):
         self.mock_requests_get.assert_not_called()
@@ -81,44 +87,53 @@ class LoginWithEmptyUsernameTestCase(TestCase):
     def test_does_not_make_post_request(self):
         self.mock_requests_post.assert_not_called()
 
-    def test_returns_empty(self):
-        self.assertEqual(self.response_cookies, {})
+    def test_no_cookies_set(self):
+        self.assertEqual(self.client.cookies, {})
 
 
 class GetModelTestCase(TestCase):
-    @rpatch("requests.get")
-    def test_makes_request(self, mock_requests_get):
-        enhydris_api_client.get_model(
-            "https://mydomain.com", {"acookie": "a cookie value"}, "Station", 42
+    @rpatch("requests.get", **{"return_value.json.return_value": {"hello": "world"}})
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.data = self.client.get_model("Station", 42)
+
+    def test_makes_request(self):
+        self.mock_requests_get.assert_called_once_with(
+            "https://mydomain.com/api/Station/42/", cookies={}
         )
-        mock_requests_get.assert_called_once_with(
-            "https://mydomain.com/api/Station/42/",
-            cookies={"acookie": "a cookie value"},
-        )
+
+    def test_returns_data(self):
+        self.assertEqual(self.data, {"hello": "world"})
+
+
+class GetModelErrorTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
 
     @rpatch("requests.get", **{"return_value.status_code": 404})
-    def test_checks_response_code(self, mock_requests_get):
+    def test_raises_exception_on_error(self, mock_requests_get):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.get_model(
-                "https://mydomain.com", {"acookie": "a cookie value"}, "Station", 42
-            )
-
-    @rpatch("requests.get", **{"return_value.json.return_value": {"hello": "world"}})
-    def test_returns_data(self, mock_requests_get):
-        data = enhydris_api_client.get_model("https://mydomain.com", {}, "Station", 42)
-        self.assertEqual(data, {"hello": "world"})
+            self.data = self.client.get_model("Station", 42)
 
 
 class PostModelTestCase(TestCase):
-    @rpatch("requests.post", **{"return_value.json.return_value": {"id": 42}})
-    def test_makes_request(self, mock_requests_post):
-        enhydris_api_client.post_model(
-            "https://mydomain.com",
-            {"csrftoken": "reallysecret"},
-            "Station",
-            data={"location": "Syria"},
-        )
-        mock_requests_post.assert_called_once_with(
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
+        # Login
+        kwargs = {"return_value.cookies": {"csrftoken": "reallysecret"}}
+        with rpatch("requests.post", **kwargs), rpatch("requests.get", **kwargs):
+            self.client.login(username="admin", password="topsecret")
+
+        # Post model
+        kwargs = {"return_value.json.return_value": {"id": 42}}
+        with rpatch("requests.post", **kwargs) as p:
+            self.mock_requests_post = p
+            self.data = self.client.post_model("Station", data={"location": "Syria"})
+
+    def test_makes_request(self):
+        self.mock_requests_post.assert_called_once_with(
             "https://mydomain.com/api/Station/",
             headers={
                 "X-CSRFToken": "reallysecret",
@@ -128,33 +143,30 @@ class PostModelTestCase(TestCase):
             data={"location": "Syria"},
         )
 
-    @rpatch("requests.post", **{"return_value.status_code": 404})
-    def test_checks_response_code(self, mock_requests_post):
-        with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.post_model(
-                "https://mydomain.com",
-                {"csrftoken": "reallysecret"},
-                "Station",
-                data={"location": "Syria"},
-            )
+    def test_returns_id(self):
+        self.assertEqual(self.data, 42)
 
-    @rpatch("requests.post", **{"return_value.json.return_value": {"id": 42}})
-    def test_returns_id(self, mock_requests_post):
-        r = enhydris_api_client.post_model(
-            "https://mydomain.com",
-            {"csrftoken": "reallysecret"},
-            "Station",
-            data={"location": "Syria"},
-        )
-        self.assertEqual(r, 42)
+
+class FailedPostModelTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
+    @rpatch("requests.post", **{"return_value.status_code": 404})
+    def test_raises_exception_on_error(self, mock_requests_post):
+        with self.assertRaises(requests.HTTPError):
+            self.client.post_model("Station", data={"location": "Syria"})
 
 
 class DeleteModelTestCase(TestCase):
+    @rpatch("requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
+    @rpatch("requests.post", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
+    def setUp(self, mrp, mrg):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.login(username="admin", password="topsecret")
+
     @rpatch("requests.delete", **{"return_value.status_code": 204})
     def test_makes_request(self, mock_requests_delete):
-        enhydris_api_client.delete_model(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, "Station", 42
-        )
+        self.client.delete_model("Station", 42)
         mock_requests_delete.assert_called_once_with(
             "https://mydomain.com/api/Station/42/",
             headers={"X-CSRFToken": "reallysecret"},
@@ -164,9 +176,7 @@ class DeleteModelTestCase(TestCase):
     @rpatch("requests.delete", **{"return_value.status_code": 404})
     def test_raises_exception_on_error(self, mock_requests_delete):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.delete_model(
-                "https://mydomain.com", {"csrftoken": "reallysecret"}, "Station", 42
-            )
+            self.client.delete_model("Station", 42)
 
 
 test_timeseries_csv = textwrap.dedent(
@@ -186,39 +196,37 @@ test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1][0
 
 
 class ReadTsDataTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
     @rpatch("requests.get", **{"return_value.text": test_timeseries_csv})
     def test_makes_request(self, mock_requests_get):
-        enhydris_api_client.read_tsdata(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-        )
+        self.client.read_tsdata(42)
         mock_requests_get.assert_called_once_with(
-            "https://mydomain.com/api/tsdata/42/", cookies={"csrftoken": "reallysecret"}
+            "https://mydomain.com/api/tsdata/42/", cookies={}
         )
 
     @rpatch("requests.get", **{"return_value.status_code": 404})
-    def test_checks_response_code(self, mock_requests_get):
+    def test_raises_exception_on_error(self, mock_requests_get):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.read_tsdata(
-                "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-            )
+            self.client.read_tsdata(42)
 
     @rpatch("requests.get", **{"return_value.text": test_timeseries_csv})
     def test_returns_data(self, mock_requests_get):
-        data = enhydris_api_client.read_tsdata(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-        )
+        data = self.client.read_tsdata(42)
         pd.testing.assert_frame_equal(data, test_timeseries_pd)
 
 
 class PostTsDataTestCase(TestCase):
+    @rpatch("requests.get", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
+    @rpatch("requests.post", **{"return_value.cookies": {"csrftoken": "reallysecret"}})
+    def setUp(self, mrp, mrg):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.login(username="admin", password="topsecret")
+
     @rpatch("requests.post")
     def test_makes_request(self, mock_requests_post):
-        enhydris_api_client.post_tsdata(
-            "https://mydomain.com",
-            {"csrftoken": "reallysecret"},
-            42,
-            test_timeseries_pd,
-        )
+        self.client.post_tsdata(42, test_timeseries_pd)
         f = StringIO()
         test_timeseries_pd.to_csv(f, header=False)
         mock_requests_post.assert_called_once_with(
@@ -232,46 +240,42 @@ class PostTsDataTestCase(TestCase):
         )
 
     @rpatch("requests.post", **{"return_value.status_code": 404})
-    def test_checks_response_code(self, mock_requests_post):
+    def test_raises_exception_on_error(self, mock_requests_post):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.post_tsdata(
-                "https://mydomain.com",
-                {"csrftoken": "reallysecret"},
-                42,
-                test_timeseries_pd,
-            )
+            self.client.post_tsdata(42, test_timeseries_pd)
 
 
 class GetTsEndDateTestCase(TestCase):
     @rpatch("requests.get", **{"return_value.text": test_timeseries_csv})
-    def test_makes_request(self, mock_requests_get):
-        enhydris_api_client.get_ts_end_date(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
+    def setUp(self, mock_requests_get):
+        self.mock_requests_get = mock_requests_get
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.result = self.client.get_ts_end_date(42)
+
+    def test_makes_request(self):
+        self.mock_requests_get.assert_called_once_with(
+            "https://mydomain.com/timeseries/d/42/bottom/", cookies={}
         )
-        mock_requests_get.assert_called_once_with(
-            "https://mydomain.com/timeseries/d/42/bottom/",
-            cookies={"csrftoken": "reallysecret"},
-        )
+
+    def test_returns_date(self):
+        self.assertEqual(self.result, datetime(2014, 1, 5, 8, 0))
+
+
+class GetTsEndDateErrorTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
 
     @rpatch("requests.get", **{"return_value.status_code": 404})
     def test_checks_response_code(self, mock_requests_get):
         with self.assertRaises(requests.HTTPError):
-            enhydris_api_client.get_ts_end_date(
-                "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-            )
-
-    @rpatch("requests.get", **{"return_value.text": test_timeseries_csv})
-    def test_returns_date(self, mock_requests_get):
-        date = enhydris_api_client.get_ts_end_date(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-        )
-        self.assertEqual(date, datetime(2014, 1, 5, 8, 0))
+            self.client.get_ts_end_date(42)
 
 
 class GetTsEndDateEmptyTestCase(TestCase):
+    def setUp(self):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
     @rpatch("requests.get", **{"return_value.text": ""})
     def test_returns_date(self, mock_requests_get):
-        date = enhydris_api_client.get_ts_end_date(
-            "https://mydomain.com", {"csrftoken": "reallysecret"}, 42
-        )
+        date = self.client.get_ts_end_date(42)
         self.assertEqual(date, datetime(1, 1, 1))
