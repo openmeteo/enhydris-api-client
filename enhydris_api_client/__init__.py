@@ -66,7 +66,7 @@ class EnhydrisApiClient:
             raise requests.HTTPError()
 
     def read_tsdata(self, ts_id):
-        url = urljoin(self.base_url, "api/tsdata/{0}/".format(ts_id))
+        url = urljoin(self.base_url, "api/tsdata/{}/".format(ts_id))
         r = self.session.get(url)
         r.raise_for_status()
         return pd.read_csv(StringIO(r.text), header=None, parse_dates=True, index_col=0)
