@@ -240,7 +240,7 @@ class GetTsEndDateEmptyTestCase(TestCase):
     def test_returns_date(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
         date = client.get_ts_end_date(42)
-        self.assertEqual(date, datetime(1, 1, 1))
+        self.assertIsNone(date)
 
 
 @skipUnless(

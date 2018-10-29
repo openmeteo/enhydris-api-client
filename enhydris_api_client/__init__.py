@@ -1,4 +1,3 @@
-from datetime import datetime
 from io import StringIO
 from urllib.parse import urljoin
 
@@ -90,4 +89,4 @@ class EnhydrisApiClient:
                 continue
             datestring = line.split(",")[0]
             return iso8601.parse_date(datestring, default_timezone=None)
-        return datetime(1, 1, 1)
+        return None

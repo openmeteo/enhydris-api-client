@@ -87,5 +87,4 @@ Reference
 **.get_ts_end_date(ts_id)**
 
     Returns a ``datetime`` object which is the last timestamp of the time
-    series. If the time series is empty, it returns a ``datetime`` object
-    that corresponds to 1 January 0001 00:00.
+    series. If the time series is empty it returns ``None``.
