@@ -3,7 +3,7 @@ import os
 import textwrap
 from datetime import datetime
 from io import StringIO
-from unittest import skipUnless, TestCase, mock
+from unittest import TestCase, mock, skipUnless
 
 import pandas as pd
 import requests

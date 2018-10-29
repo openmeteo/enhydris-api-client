@@ -22,8 +22,11 @@ class EnhydrisApiClient:
         r.raise_for_status()
         self.session.headers.update(
             {
+                # At this point r.cookies should always have a csrftoken. However, if
+                # the server has somehow misbehaved, let's not crash---we'll set the
+                # value to "unspecified CSRF token", which should be useful and lead
+                # to a 403 afterwards.
                 "X-CSRFToken": r.cookies.get("csrftoken", "unspecified CSRF token"),
-
                 # My understanding from requests' documentation is that when I make a
                 # post request, it shouldn't be necessary to specify Content-Type:
                 # application/x-www-form-urlencoded, and that requests adds the header
