@@ -53,38 +53,38 @@ Reference
 
 **EnhydrisApiClient(base_url)**
 
-    Creates a client. It has the following methods.
+Creates a client. It has the following methods.
 
 **.login(username, password)**
 
-    Logins to Enhydris. Raises an exception if unsuccessful.
+Logins to Enhydris. Raises an exception if unsuccessful.
 
 **.get_model(model, id)**
 
-    Returns a dict with the data for the model of type ``model`` (a string such
-    as "Timeseries" or "Station"), with the given ``id``.
+Returns a dict with the data for the model of type ``model`` (a string such
+as "Timeseries" or "Station"), with the given ``id``.
 
 **.post_model(model, data)**
 
-    Creates a new model of type ``model`` (a string such as "Timeseries"
-    or "Station"), with its data given by dictionary ``data``, and
-    returns its id.
+Creates a new model of type ``model`` (a string such as "Timeseries"
+or "Station"), with its data given by dictionary ``data``, and
+returns its id.
 
 **.delete_model(model, id)**
 
-    Deletes the specified model. See ``get_model`` for the parameters.
+Deletes the specified model. See ``get_model`` for the parameters.
 
 **.read_tsdata(timeseries_id)**
 
-    Retrieves the time series data into a pandas dataframe indexed by date that
-    it returns.
+Retrieves the time series data into a pandas dataframe indexed by date that
+it returns.
 
 **.post_tsdata(timeseries_id, ts)**
 
-    Posts a time series to Enhydris "api/tsdata", appending the records
-    to any already existing. ``ts`` is a pandas dataframe indexed by date.
+Posts a time series to Enhydris "api/tsdata", appending the records
+to any already existing. ``ts`` is a pandas dataframe indexed by date.
 
 **.get_ts_end_date(ts_id)**
 
-    Returns a ``datetime`` object which is the last timestamp of the time
-    series. If the time series is empty it returns ``None``.
+Returns a ``datetime`` object which is the last timestamp of the time
+series. If the time series is empty it returns ``None``.
