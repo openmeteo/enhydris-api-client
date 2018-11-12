@@ -184,6 +184,14 @@ class ReadTsDataTestCase(TestCase):
         pd.testing.assert_frame_equal(self.data, test_timeseries_pd)
 
 
+class ReadEmptyTsDataTestCase(TestCase):
+    @mock_session(**{"get.return_value.text": ""})
+    def test_returns_data(self, mock_requests_session):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.data = self.client.read_tsdata(42)
+        pd.testing.assert_frame_equal(self.data, pd.DataFrame())
+
+
 class ReadTsDataErrorTestCase(TestCase):
     @mock_session(**{"get.return_value.status_code": 404})
     def test_raises_exception_on_error(self, mock_requests_session):
