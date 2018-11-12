@@ -68,7 +68,12 @@ class EnhydrisApiClient:
         url = urljoin(self.base_url, "api/tsdata/{}/".format(ts_id))
         r = self.session.get(url)
         r.raise_for_status()
-        return pd.read_csv(StringIO(r.text), header=None, parse_dates=True, index_col=0)
+        if not r.text:
+            return pd.DataFrame()
+        else:
+            return pd.read_csv(
+                StringIO(r.text), header=None, parse_dates=True, index_col=0
+            )
 
     def post_tsdata(self, timeseries_id, ts):
         f = StringIO()
