@@ -37,6 +37,6 @@ setup(
     test_suite="tests",
     tests_require=test_requirements,
     url="https://github.com/openmeteo/enhydris-api-client",
-    version="0.1.0.dev0",
+    version="0.1.0",
     zip_safe=False,
 )
