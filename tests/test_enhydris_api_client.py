@@ -7,6 +7,7 @@ from unittest import TestCase, mock, skipUnless
 
 import pandas as pd
 import requests
+from htimeseries import HTimeseries
 
 from enhydris_api_client import EnhydrisApiClient
 
@@ -50,19 +51,13 @@ class SuccessfulLoginTestCase(TestCase):
 
     def test_makes_post_request(self):
         self.mock_requests_session.return_value.post.assert_called_once_with(
-            "https://mydomain.com/accounts/login/",
+            "https://mydomain.com/api/auth/login/",
             data="username=admin&password=topsecret",
             allow_redirects=False,
         )
 
 
 class FailedLoginTestCase(TestCase):
-    @mock_session(**{"get.return_value.status_code": 404})
-    def test_raises_exception_on_get_failure(self, mock_requests_session):
-        self.client = EnhydrisApiClient("https://mydomain.com")
-        with self.assertRaises(requests.HTTPError):
-            self.client.login("admin", "topsecret")
-
     @mock_session(**{"post.return_value.status_code": 404})
     def test_raises_exception_on_post_failure(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
@@ -84,72 +79,93 @@ class LoginWithEmptyUsernameTestCase(TestCase):
         self.mock_requests_session.post.assert_not_called()
 
 
-class GetModelTestCase(TestCase):
+class GetStationTestCase(TestCase):
     @mock_session(**{"get.return_value.json.return_value": {"hello": "world"}})
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.data = self.client.get_model("Station", 42)
+        self.data = self.client.get_station(42)
 
     def test_makes_request(self):
         self.mock_requests_session.return_value.get.assert_called_once_with(
-            "https://mydomain.com/api/Station/42/"
+            "https://mydomain.com/api/stations/42/"
         )
 
     def test_returns_data(self):
         self.assertEqual(self.data, {"hello": "world"})
 
 
-class GetModelErrorTestCase(TestCase):
+class GetTimeseriesTestCase(TestCase):
+    @mock_session(**{"get.return_value.json.return_value": {"hello": "world"}})
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.data = self.client.get_timeseries(41, 42)
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.get.assert_called_once_with(
+            "https://mydomain.com/api/stations/41/timeseries/42/"
+        )
+
+    def test_returns_data(self):
+        self.assertEqual(self.data, {"hello": "world"})
+
+
+class GetStationOrTimeseriesErrorTestCase(TestCase):
     @mock_session(**{"get.return_value.status_code": 404})
     def setUp(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
 
-    def test_raises_exception_on_error(self):
+    def test_raises_exception_on_get_station_error(self):
         with self.assertRaises(requests.HTTPError):
-            self.data = self.client.get_model("Station", 42)
+            self.data = self.client.get_station(42)
+
+    def test_raises_exception_on_get_timeseries_error(self):
+        with self.assertRaises(requests.HTTPError):
+            self.data = self.client.get_timeseries(41, 42)
 
 
-class PostModelTestCase(TestCase):
+class PostTimeseriesTestCase(TestCase):
     @mock_session(**{"post.return_value.json.return_value": {"id": 42}})
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.data = self.client.post_model("Station", data={"location": "Syria"})
+        self.data = self.client.post_timeseries(41, data={"location": "Syria"})
 
     def test_makes_request(self):
         self.mock_requests_session.return_value.post.assert_called_once_with(
-            "https://mydomain.com/api/Station/", data={"location": "Syria"}
+            "https://mydomain.com/api/stations/41/timeseries/",
+            data={"location": "Syria"},
         )
 
     def test_returns_id(self):
         self.assertEqual(self.data, 42)
 
 
-class FailedPostModelTestCase(TestCase):
+class FailedPostTimeseriesTestCase(TestCase):
     @mock_session(**{"post.return_value.status_code": 404})
     def setUp(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
 
     def test_raises_exception_on_error(self):
         with self.assertRaises(requests.HTTPError):
-            self.client.post_model("Station", data={"location": "Syria"})
+            self.client.post_timeseries(41, data={"location": "Syria"})
 
 
-class DeleteModelTestCase(TestCase):
+class DeleteTimeseriesTestCase(TestCase):
     @mock_session()
     def test_makes_request(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.client.delete_model("Station", 42)
+        self.client.delete_timeseries(41, 42)
         mock_requests_session.return_value.delete.assert_called_once_with(
-            "https://mydomain.com/api/Station/42/"
+            "https://mydomain.com/api/stations/41/timeseries/42/"
         )
 
     @mock_session(**{"delete.return_value.status_code": 404})
     def test_raises_exception_on_error(self, mock_requests_delete):
         self.client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            self.client.delete_model("Station", 42)
+            self.client.delete_timeseries(41, 42)
 
 
 test_timeseries_csv = textwrap.dedent(
@@ -161,11 +177,9 @@ test_timeseries_csv = textwrap.dedent(
     2014-01-05 08:00,15.0,
     """
 )
-test_timeseries_pd = pd.read_csv(
-    StringIO(test_timeseries_csv), header=None, parse_dates=True, index_col=0
-)
+test_timeseries_hts = HTimeseries.read(StringIO(test_timeseries_csv))
 test_timeseries_csv_top = "".join(test_timeseries_csv.splitlines(keepends=True)[:-1])
-test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1][0]
+test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1]
 
 
 class ReadTsDataTestCase(TestCase):
@@ -173,23 +187,23 @@ class ReadTsDataTestCase(TestCase):
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.data = self.client.read_tsdata(42)
+        self.data = self.client.read_tsdata(41, 42)
 
     def test_makes_request(self):
         self.mock_requests_session.return_value.get.assert_called_once_with(
-            "https://mydomain.com/api/tsdata/42/"
+            "https://mydomain.com/api/stations/41/timeseries/42/data/"
         )
 
     def test_returns_data(self):
-        pd.testing.assert_frame_equal(self.data, test_timeseries_pd)
+        pd.testing.assert_frame_equal(self.data.data, test_timeseries_hts.data)
 
 
 class ReadEmptyTsDataTestCase(TestCase):
     @mock_session(**{"get.return_value.text": ""})
     def test_returns_data(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.data = self.client.read_tsdata(42)
-        pd.testing.assert_frame_equal(self.data, pd.DataFrame())
+        self.data = self.client.read_tsdata(41, 42)
+        pd.testing.assert_frame_equal(self.data.data, HTimeseries().data)
 
 
 class ReadTsDataErrorTestCase(TestCase):
@@ -197,18 +211,18 @@ class ReadTsDataErrorTestCase(TestCase):
     def test_raises_exception_on_error(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            self.client.read_tsdata(42)
+            self.client.read_tsdata(41, 42)
 
 
 class PostTsDataTestCase(TestCase):
     @mock_session()
     def test_makes_request(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
-        client.post_tsdata(42, test_timeseries_pd)
+        client.post_tsdata(41, 42, test_timeseries_hts)
         f = StringIO()
-        test_timeseries_pd.to_csv(f, header=False)
+        test_timeseries_hts.data.to_csv(f, header=False)
         mock_requests_session.return_value.post.assert_called_once_with(
-            "https://mydomain.com/api/tsdata/42/",
+            "https://mydomain.com/api/stations/41/timeseries/42/data/",
             data={"timeseries_records": f.getvalue()},
         )
 
@@ -216,19 +230,19 @@ class PostTsDataTestCase(TestCase):
     def test_raises_exception_on_error(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            client.post_tsdata(42, test_timeseries_pd)
+            client.post_tsdata(41, 42, test_timeseries_hts)
 
 
 class GetTsEndDateTestCase(TestCase):
-    @mock_session(**{"get.return_value.text": test_timeseries_csv})
+    @mock_session(**{"get.return_value.text": test_timeseries_csv_bottom})
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.result = self.client.get_ts_end_date(42)
+        self.result = self.client.get_ts_end_date(41, 42)
 
     def test_makes_request(self):
         self.mock_requests_session.return_value.get.assert_called_once_with(
-            "https://mydomain.com/timeseries/d/42/bottom/"
+            "https://mydomain.com/api/stations/41/timeseries/42/bottom/"
         )
 
     def test_returns_date(self):
@@ -240,14 +254,14 @@ class GetTsEndDateErrorTestCase(TestCase):
     def test_checks_response_code(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            client.get_ts_end_date(42)
+            client.get_ts_end_date(41, 42)
 
 
 class GetTsEndDateEmptyTestCase(TestCase):
     @mock_session(**{"get.return_value.text": ""})
     def test_returns_date(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
-        date = client.get_ts_end_date(42)
+        date = client.get_ts_end_date(41, 42)
         self.assertIsNone(date)
 
 
@@ -262,11 +276,12 @@ class EndToEndTestCase(TestCase):
             {"base_url": "http://localhost:8001",
              "username": "admin",
              "password": "topsecret",
+             "station_id": 1334,
              "owner_id": 9,
              "stype_id": 1,
              "time_zone_id": 3,
              "unit_of_measurement_id": 18,
-             "variable_id": 22,
+             "variable_id": 22
              }
         '
     This should point to an Enhydris server. Avoid using a production database for
@@ -284,6 +299,7 @@ class EndToEndTestCase(TestCase):
         self.client = EnhydrisApiClient(v["base_url"])
         self.username = v["username"]
         self.password = v["password"]
+        self.station_id = v["station_id"]
         self.stype_id = v["stype_id"]
         self.owner_id = v["owner_id"]
         self.time_zone_id = v["time_zone_id"]
@@ -291,46 +307,29 @@ class EndToEndTestCase(TestCase):
         self.variable_id = v["variable_id"]
 
     def tearDown(self):
-        self.remove_item("Timeseries")
-        self.remove_item("Station")
-
-    def remove_item(self, itemtype):
-        id_attribute = itemtype.lower() + "_id"
-        id_value = getattr(self, id_attribute, None)
-        if id_value:
-            self.client.delete_model(itemtype, id_value)
+        self.client.delete_timeseries(self.station_id, self.timeseries_id)
 
     def test_e2e(self):
         # Verify we are logged out
-        r = self.client.session.get(self.client.base_url)
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue("Login" in r.text)
-        self.assertFalse("Logout" in r.text)
+        r = self.client.session.get(
+            self.client.base_url + "/admin/", allow_redirects=False
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(r.headers["Location"], "/admin/login/?next=/admin/")
 
         # Login and verify we're logged on
         self.client.login(self.username, self.password)
-        r = self.client.session.get(self.client.base_url)
+        r = self.client.session.get(self.client.base_url + "/admin/")
         self.assertEqual(r.status_code, 200)
-        self.assertFalse("Login" in r.text)
-        self.assertTrue("Logout" in r.text)
+        self.assertTrue("Log out" in r.text)
 
-        # Create a station and verify it was created
-        self.station_id = self.client.post_model(
-            "Station",
-            data={
-                "name": "Delete me",
-                "copyright_holder": "Joe",
-                "copyright_years": "2018",
-                "owner": self.owner_id,
-                "stype": [self.stype_id],
-            },
-        )
-        station = self.client.get_model("Station", self.station_id)
-        self.assertEqual(station["name"], "Delete me")
+        # Get the station
+        station = self.client.get_station(self.station_id)
+        self.assertEqual(station["id"], self.station_id)
 
         # Create a time series and verify it was created
-        self.timeseries_id = self.client.post_model(
-            "Timeseries",
+        self.timeseries_id = self.client.post_timeseries(
+            self.station_id,
             data={
                 "name": "Delete this time series",
                 "gentity": self.station_id,
@@ -339,16 +338,18 @@ class EndToEndTestCase(TestCase):
                 "variable": self.variable_id,
             },
         )
-        timeseries = self.client.get_model("Timeseries", self.timeseries_id)
+        timeseries = self.client.get_timeseries(self.station_id, self.timeseries_id)
         self.assertEqual(timeseries["name"], "Delete this time series")
 
         # Post time series data
-        self.client.post_tsdata(self.timeseries_id, test_timeseries_pd)
+        self.client.post_tsdata(
+            self.station_id, self.timeseries_id, test_timeseries_hts
+        )
 
         # Get the last date and check it
-        date = self.client.get_ts_end_date(self.timeseries_id)
+        date = self.client.get_ts_end_date(self.station_id, self.timeseries_id)
         self.assertEqual(date, datetime(2014, 1, 5, 8, 0))
 
         # Get all time series data and check it
-        data = self.client.read_tsdata(self.timeseries_id)
-        pd.testing.assert_frame_equal(data, test_timeseries_pd)
+        data = self.client.read_tsdata(self.station_id, self.timeseries_id)
+        pd.testing.assert_frame_equal(data.data, test_timeseries_hts.data)
