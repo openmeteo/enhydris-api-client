@@ -59,32 +59,34 @@ Creates a client. It has the following methods.
 
 Logins to Enhydris. Raises an exception if unsuccessful.
 
-**.get_model(model, id)**
+**.get_station(id)**
 
-Returns a dict with the data for the model of type ``model`` (a string such
-as "Timeseries" or "Station"), with the given ``id``.
+Returns a dict with the data for the station with the given ``id``.
 
-**.post_model(model, data)**
+**.get_timeseries(station_id, timeseries_id)**
 
-Creates a new model of type ``model`` (a string such as "Timeseries"
-or "Station"), with its data given by dictionary ``data``, and
-returns its id.
+Returns a dict with the data for the given time series.
 
-**.delete_model(model, id)**
+**.post_timeseries(station_id, data)**
 
-Deletes the specified model. See ``get_model`` for the parameters.
+Creates a new time series, with its data given by dictionary ``data``,
+and returns its id.
 
-**.read_tsdata(timeseries_id)**
+**.delete_timeseries(station_id, timeseries_id)**
 
-Retrieves the time series data into a pandas dataframe indexed by date that
-it returns.
+Deletes the specified time series.
 
-**.post_tsdata(timeseries_id, ts)**
+**.read_tsdata(station_id, timeseries_id)**
 
-Posts a time series to Enhydris "api/tsdata", appending the records
-to any already existing. ``ts`` is a pandas dataframe indexed by date.
+Retrieves the time series data into a htimeseries object that it
+returns.
 
-**.get_ts_end_date(ts_id)**
+**.post_tsdata(station_id, timeseries_id, ts)**
+
+Posts a time series to Enhydris, appending the records to any already
+existing.  ``ts`` is a htimeseries object.
+
+**.get_ts_end_date(station_id, timeseries_id)**
 
 Returns a ``datetime`` object which is the last timestamp of the time
 series. If the time series is empty it returns ``None``.
