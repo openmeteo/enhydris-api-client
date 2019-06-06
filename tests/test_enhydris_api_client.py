@@ -177,7 +177,7 @@ test_timeseries_csv = textwrap.dedent(
     2014-01-05 08:00,15.0,
     """
 )
-test_timeseries_hts = HTimeseries.read(StringIO(test_timeseries_csv))
+test_timeseries_hts = HTimeseries(StringIO(test_timeseries_csv))
 test_timeseries_csv_top = "".join(test_timeseries_csv.splitlines(keepends=True)[:-1])
 test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1]
 

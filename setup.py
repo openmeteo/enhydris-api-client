@@ -8,7 +8,7 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements = ["iso8601", "pandas>=0.20", "requests>=1,<3", "htimeseries>=0.2.0"]
+requirements = ["iso8601", "pandas>=0.20", "requests>=1,<3", "htimeseries>=1,<2"]
 
 setup_requirements = []
 

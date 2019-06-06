@@ -72,7 +72,7 @@ class EnhydrisApiClient:
         r = self.session.get(url)
         r.raise_for_status()
         if r.text:
-            return HTimeseries.read(StringIO(r.text))
+            return HTimeseries(StringIO(r.text))
         else:
             return HTimeseries()
 
