@@ -2,6 +2,12 @@
 History
 =======
 
+0.4.1 (2019-06-12)
+==================
+
+- Fixed bug where .read_tsdata() was failing to set the metadata
+  attributes of the time series.
+
 0.4.0 (2019-06-12)
 ==================
 

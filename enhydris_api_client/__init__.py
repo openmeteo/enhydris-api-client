@@ -69,7 +69,7 @@ class EnhydrisApiClient:
             self.base_url,
             "api/stations/{}/timeseries/{}/data/".format(station_id, timeseries_id),
         )
-        params = {}
+        params = {"fmt": "hts"}
         params["start_date"] = start_date and start_date.isoformat()
         params["end_date"] = end_date and end_date.isoformat()
         r = self.session.get(url, params=params)
