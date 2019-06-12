@@ -1,7 +1,7 @@
+import datetime as dt
 import json
 import os
 import textwrap
-from datetime import datetime
 from io import StringIO
 from unittest import TestCase, mock, skipUnless
 
@@ -191,7 +191,33 @@ class ReadTsDataTestCase(TestCase):
 
     def test_makes_request(self):
         self.mock_requests_session.return_value.get.assert_called_once_with(
-            "https://mydomain.com/api/stations/41/timeseries/42/data/"
+            "https://mydomain.com/api/stations/41/timeseries/42/data/",
+            params={"start_date": None, "end_date": None},
+        )
+
+    def test_returns_data(self):
+        pd.testing.assert_frame_equal(self.data.data, test_timeseries_hts.data)
+
+
+class ReadTsDataWithStartAndEndDateTestCase(TestCase):
+    @mock_session(**{"get.return_value.text": test_timeseries_csv})
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.data = self.client.read_tsdata(
+            41,
+            42,
+            start_date=dt.datetime(2019, 6, 12, 0, 0),
+            end_date=dt.datetime(2019, 6, 13, 15, 25),
+        )
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.get.assert_called_once_with(
+            "https://mydomain.com/api/stations/41/timeseries/42/data/",
+            params={
+                "start_date": "2019-06-12T00:00:00",
+                "end_date": "2019-06-13T15:25:00",
+            },
         )
 
     def test_returns_data(self):
@@ -246,7 +272,7 @@ class GetTsEndDateTestCase(TestCase):
         )
 
     def test_returns_date(self):
-        self.assertEqual(self.result, datetime(2014, 1, 5, 8, 0))
+        self.assertEqual(self.result, dt.datetime(2014, 1, 5, 8, 0))
 
 
 class GetTsEndDateErrorTestCase(TestCase):
@@ -348,8 +374,27 @@ class EndToEndTestCase(TestCase):
 
         # Get the last date and check it
         date = self.client.get_ts_end_date(self.station_id, self.timeseries_id)
-        self.assertEqual(date, datetime(2014, 1, 5, 8, 0))
+        self.assertEqual(date, dt.datetime(2014, 1, 5, 8, 0))
 
         # Get all time series data and check it
         data = self.client.read_tsdata(self.station_id, self.timeseries_id)
         pd.testing.assert_frame_equal(data.data, test_timeseries_hts.data)
+
+        # Get part of the time series data and check it
+        data = self.client.read_tsdata(
+            self.station_id,
+            self.timeseries_id,
+            start_date=dt.datetime(2014, 1, 3, 8, 0),
+            end_date=dt.datetime(2014, 1, 4, 8, 0),
+        )
+        expected_result = HTimeseries(
+            StringIO(
+                textwrap.dedent(
+                    """\
+                    2014-01-03 08:00,13.0,
+                    2014-01-04 08:00,14.0,
+                    """
+                )
+            )
+        )
+        pd.testing.assert_frame_equal(data.data, expected_result.data)

@@ -76,10 +76,11 @@ and returns its id.
 
 Deletes the specified time series.
 
-**.read_tsdata(station_id, timeseries_id)**
+**.read_tsdata(station_id, timeseries_id, start_date=None, end_date=None)**
 
 Retrieves the time series data into a htimeseries object that it
-returns.
+returns. If ``start_date`` and/or ``end_date`` are specified, only the
+part of the time series between these dates is retrieved.
 
 **.post_tsdata(station_id, timeseries_id, ts)**
 

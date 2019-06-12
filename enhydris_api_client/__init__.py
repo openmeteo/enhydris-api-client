@@ -64,12 +64,15 @@ class EnhydrisApiClient:
         if r.status_code != 204:
             raise requests.HTTPError()
 
-    def read_tsdata(self, station_id, timeseries_id):
+    def read_tsdata(self, station_id, timeseries_id, start_date=None, end_date=None):
         url = urljoin(
             self.base_url,
             "api/stations/{}/timeseries/{}/data/".format(station_id, timeseries_id),
         )
-        r = self.session.get(url)
+        params = {}
+        params["start_date"] = start_date and start_date.isoformat()
+        params["end_date"] = end_date and end_date.isoformat()
+        r = self.session.get(url, params=params)
         r.raise_for_status()
         if r.text:
             return HTimeseries(StringIO(r.text))
