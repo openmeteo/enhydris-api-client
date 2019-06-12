@@ -192,7 +192,7 @@ class ReadTsDataTestCase(TestCase):
     def test_makes_request(self):
         self.mock_requests_session.return_value.get.assert_called_once_with(
             "https://mydomain.com/api/stations/41/timeseries/42/data/",
-            params={"start_date": None, "end_date": None},
+            params={"fmt": "hts", "start_date": None, "end_date": None},
         )
 
     def test_returns_data(self):
@@ -215,6 +215,7 @@ class ReadTsDataWithStartAndEndDateTestCase(TestCase):
         self.mock_requests_session.return_value.get.assert_called_once_with(
             "https://mydomain.com/api/stations/41/timeseries/42/data/",
             params={
+                "fmt": "hts",
                 "start_date": "2019-06-12T00:00:00",
                 "end_date": "2019-06-13T15:25:00",
             },
@@ -377,11 +378,14 @@ class EndToEndTestCase(TestCase):
         self.assertEqual(date, dt.datetime(2014, 1, 5, 8, 0))
 
         # Get all time series data and check it
-        data = self.client.read_tsdata(self.station_id, self.timeseries_id)
-        pd.testing.assert_frame_equal(data.data, test_timeseries_hts.data)
+        hts = self.client.read_tsdata(self.station_id, self.timeseries_id)
+        pd.testing.assert_frame_equal(hts.data, test_timeseries_hts.data)
+
+        # The other attributes should have been set too.
+        self.assertTrue(hasattr(hts, "variable"))
 
         # Get part of the time series data and check it
-        data = self.client.read_tsdata(
+        hts = self.client.read_tsdata(
             self.station_id,
             self.timeseries_id,
             start_date=dt.datetime(2014, 1, 3, 8, 0),
@@ -397,4 +401,4 @@ class EndToEndTestCase(TestCase):
                 )
             )
         )
-        pd.testing.assert_frame_equal(data.data, expected_result.data)
+        pd.testing.assert_frame_equal(hts.data, expected_result.data)
