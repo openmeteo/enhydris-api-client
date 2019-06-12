@@ -2,6 +2,11 @@
 History
 =======
 
+0.4.0 (2019-06-12)
+==================
+
+- .read_tsdata() now accepts optional arguments start_date and end_date.
+
 0.3.0 (2019-06-06)
 ==================
 
