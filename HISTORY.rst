@@ -2,6 +2,12 @@
 History
 =======
 
+0.5.0 (2019-06-13)
+==================
+
+- Can now be used as a context manager
+- Added post/put/patch/delete station
+
 0.4.1 (2019-06-12)
 ==================
 
