@@ -38,14 +38,14 @@ Example
 
     from enhydris_api_client import EnhydrisApiClient
 
-    api_client = EnhydrisApiClient("https://openmeteo.org")
-    api_client.login("joe", "topsecret")
+    with EnhydrisApiClient("https://openmeteo.org") as api_client:
+        api_client.login("joe", "topsecret")
 
-    # Get a dict with attrs of station with id=42
-    station = api_client.get_model(Station, 42)
+        # Get a dict with attrs of station with id=42
+        station = api_client.get_model(Station, 42)
 
-    # Create a new station
-    api_client.post_model(Station, data={"name": "my station"})
+        # Create a new station
+        api_client.post_model(Station, data={"name": "my station"})
 
 
 Reference
@@ -53,7 +53,11 @@ Reference
 
 **EnhydrisApiClient(base_url)**
 
-Creates a client. It has the following methods.
+Creates and returns an api client. It can also be used as a context
+manager, though this is not necessary. If not used as a context manager,
+you might get warnings about unclosed sockets.
+
+``EnhydrisApiClient`` objects have the following methods:
 
 **.login(username, password)**
 

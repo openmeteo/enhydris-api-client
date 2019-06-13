@@ -292,6 +292,27 @@ class GetTsEndDateEmptyTestCase(TestCase):
         self.assertIsNone(date)
 
 
+class UseAsContextManagerTestCase(TestCase):
+    @mock_session()
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        with EnhydrisApiClient("https://mydomain.com/") as api_client:
+            api_client.get_station(42)
+
+    def test_called_enter(self):
+        self.mock_requests_session.return_value.__enter__.assert_called_once_with()
+
+    def test_called_exit(self):
+        self.assertEqual(
+            len(self.mock_requests_session.return_value.__exit__.mock_calls), 1
+        )
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.get.assert_called_once_with(
+            "https://mydomain.com/api/stations/42/"
+        )
+
+
 @skipUnless(
     os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"), "Set ENHYDRIS_API_CLIENT_E2E_TEST"
 )

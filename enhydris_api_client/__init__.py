@@ -21,6 +21,13 @@ class EnhydrisApiClient:
             {"Content-Type": "application/x-www-form-urlencoded"}
         )
 
+    def __enter__(self):
+        self.session.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        self.session.__exit__(*args)
+
     def login(self, username, password):
         if not username:
             return
