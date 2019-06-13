@@ -67,6 +67,25 @@ Logins to Enhydris. Raises an exception if unsuccessful.
 
 Returns a dict with the data for the station with the given ``id``.
 
+**.post_station(data)**
+
+Creates a new station, with its data given by dictionary ``data``, and
+returns its id.
+
+**.put_station(station_id, data)**
+
+Replaces the station's attributes with ``data`` (a dictionary). Any
+unspecified attributes are set to null.
+
+**.patch_station(station_id, data)**
+
+Same as ``put_station()`` except that any attribute not specified in
+``data`` is untouched.
+
+**.delete_station(station_id)**
+
+Deletes the specified station.
+
 **.get_timeseries(station_id, timeseries_id)**
 
 Returns a dict with the data for the given time series.

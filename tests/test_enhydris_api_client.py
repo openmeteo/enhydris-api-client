@@ -95,6 +95,64 @@ class GetStationTestCase(TestCase):
         self.assertEqual(self.data, {"hello": "world"})
 
 
+class PostStationTestCase(TestCase):
+    @mock_session(**{"post.return_value.json.return_value": {"id": 42}})
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.data = self.client.post_station(data={"location": "Syria"})
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.post.assert_called_once_with(
+            "https://mydomain.com/api/stations/", data={"location": "Syria"}
+        )
+
+    def test_returns_id(self):
+        self.assertEqual(self.data, 42)
+
+
+class PutStationTestCase(TestCase):
+    @mock_session()
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.put_station(42, data={"location": "Syria"})
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.put.assert_called_once_with(
+            "https://mydomain.com/api/stations/42/", data={"location": "Syria"}
+        )
+
+
+class PatchStationTestCase(TestCase):
+    @mock_session()
+    def setUp(self, mock_requests_session):
+        self.mock_requests_session = mock_requests_session
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.patch_station(42, data={"location": "Syria"})
+
+    def test_makes_request(self):
+        self.mock_requests_session.return_value.patch.assert_called_once_with(
+            "https://mydomain.com/api/stations/42/", data={"location": "Syria"}
+        )
+
+
+class DeleteStationTestCase(TestCase):
+    @mock_session()
+    def test_makes_request(self, mock_requests_session):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        self.client.delete_station(42)
+        mock_requests_session.return_value.delete.assert_called_once_with(
+            "https://mydomain.com/api/stations/42/"
+        )
+
+    @mock_session(**{"delete.return_value.status_code": 404})
+    def test_raises_exception_on_error(self, mock_requests_delete):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+        with self.assertRaises(requests.HTTPError):
+            self.client.delete_station(42)
+
+
 class GetTimeseriesTestCase(TestCase):
     @mock_session(**{"get.return_value.json.return_value": {"hello": "world"}})
     def setUp(self, mock_requests_session):
@@ -324,7 +382,6 @@ class EndToEndTestCase(TestCase):
             {"base_url": "http://localhost:8001",
              "username": "admin",
              "password": "topsecret",
-             "station_id": 1334,
              "owner_id": 9,
              "stype_id": 1,
              "time_zone_id": 3,
@@ -347,15 +404,11 @@ class EndToEndTestCase(TestCase):
         self.client = EnhydrisApiClient(v["base_url"])
         self.username = v["username"]
         self.password = v["password"]
-        self.station_id = v["station_id"]
         self.stype_id = v["stype_id"]
         self.owner_id = v["owner_id"]
         self.time_zone_id = v["time_zone_id"]
         self.unit_of_measurement_id = v["unit_of_measurement_id"]
         self.variable_id = v["variable_id"]
-
-    def tearDown(self):
-        self.client.delete_timeseries(self.station_id, self.timeseries_id)
 
     def test_e2e(self):
         # Verify we are logged out
@@ -371,9 +424,23 @@ class EndToEndTestCase(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTrue("Log out" in r.text)
 
+        # Create a station
+        self.station_id = self.client.post_station(
+            {
+                "name": "My station",
+                "is_automatic": True,
+                "copyright_holder": "Joe User",
+                "copyright_years": "2019",
+                "point": "POINT(20.94565 39.12102)",
+                "original_srid": 4326,
+                "owner": self.owner_id,
+            }
+        )
+
         # Get the station
         station = self.client.get_station(self.station_id)
         self.assertEqual(station["id"], self.station_id)
+        self.assertEqual(station["name"], "My station")
 
         # Create a time series and verify it was created
         self.timeseries_id = self.client.post_timeseries(
@@ -423,3 +490,35 @@ class EndToEndTestCase(TestCase):
             )
         )
         pd.testing.assert_frame_equal(hts.data, expected_result.data)
+
+        # Delete the time series and verify
+        self.client.delete_timeseries(self.station_id, self.timeseries_id)
+        with self.assertRaises(requests.HTTPError):
+            self.client.get_timeseries(self.station_id, self.timeseries_id)
+
+        # Patch station and verify
+        self.client.patch_station(self.station_id, {"name": "New name"})
+        station = self.client.get_station(self.station_id)
+        self.assertEqual(station["name"], "New name")
+        self.assertEqual(station["is_automatic"], True)  # Remains as it was
+
+        # Put station and verify
+        self.client.put_station(
+            self.station_id,
+            {
+                "name": "Newer name",
+                "copyright_holder": "Joe User",
+                "copyright_years": "2019",
+                "point": "POINT(20.94565 39.12102)",
+                "original_srid": 4326,
+                "owner": self.owner_id,
+            },
+        )
+        station = self.client.get_station(self.station_id)
+        self.assertEqual(station["name"], "Newer name")
+        self.assertEqual(station["is_automatic"], False)  # Has been reset
+
+        # Delete station and verify
+        self.client.delete_station(self.station_id)
+        with self.assertRaises(requests.HTTPError):
+            self.client.get_station(self.station_id)

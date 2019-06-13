@@ -45,6 +45,29 @@ class EnhydrisApiClient:
         r.raise_for_status()
         return r.json()
 
+    def post_station(self, data):
+        r = self.session.post(urljoin(self.base_url, "api/stations/"), data=data)
+        r.raise_for_status()
+        return r.json()["id"]
+
+    def put_station(self, station_id, data):
+        r = self.session.put(
+            urljoin(self.base_url, "api/stations/{}/".format(station_id)), data=data
+        )
+        r.raise_for_status()
+
+    def patch_station(self, station_id, data):
+        r = self.session.patch(
+            urljoin(self.base_url, "api/stations/{}/".format(station_id)), data=data
+        )
+        r.raise_for_status()
+
+    def delete_station(self, station_id):
+        url = urljoin(self.base_url, "api/stations/{}/".format(station_id))
+        r = self.session.delete(url)
+        if r.status_code != 204:
+            raise requests.HTTPError()
+
     def get_timeseries(self, station_id, timeseries_id):
         url = urljoin(
             self.base_url,
