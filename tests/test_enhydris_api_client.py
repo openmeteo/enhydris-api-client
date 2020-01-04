@@ -383,7 +383,6 @@ class EndToEndTestCase(TestCase):
              "username": "admin",
              "password": "topsecret",
              "owner_id": 9,
-             "stype_id": 1,
              "time_zone_id": 3,
              "unit_of_measurement_id": 18,
              "variable_id": 22
@@ -404,7 +403,6 @@ class EndToEndTestCase(TestCase):
         self.client = EnhydrisApiClient(v["base_url"])
         self.username = v["username"]
         self.password = v["password"]
-        self.stype_id = v["stype_id"]
         self.owner_id = v["owner_id"]
         self.time_zone_id = v["time_zone_id"]
         self.unit_of_measurement_id = v["unit_of_measurement_id"]
@@ -431,7 +429,7 @@ class EndToEndTestCase(TestCase):
                 "is_automatic": True,
                 "copyright_holder": "Joe User",
                 "copyright_years": "2019",
-                "point": "POINT(20.94565 39.12102)",
+                "geom": "POINT(20.94565 39.12102)",
                 "original_srid": 4326,
                 "owner": self.owner_id,
             }
@@ -451,6 +449,7 @@ class EndToEndTestCase(TestCase):
                 "time_zone": self.time_zone_id,
                 "unit_of_measurement": self.unit_of_measurement_id,
                 "variable": self.variable_id,
+                "precision": 1,
             },
         )
         timeseries = self.client.get_timeseries(self.station_id, self.timeseries_id)
@@ -509,7 +508,7 @@ class EndToEndTestCase(TestCase):
                 "name": "Newer name",
                 "copyright_holder": "Joe User",
                 "copyright_years": "2019",
-                "point": "POINT(20.94565 39.12102)",
+                "geom": "POINT(20.94565 39.12102)",
                 "original_srid": 4326,
                 "owner": self.owner_id,
             },
