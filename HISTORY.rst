@@ -2,6 +2,11 @@
 History
 =======
 
+0.5.1 (2020-01-05)
+==================
+
+- Minor fix for compatibility with htimeseries 2
+
 0.5.0 (2019-06-13)
 ==================
 
