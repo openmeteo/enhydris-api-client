@@ -2,6 +2,11 @@
 History
 =======
 
+DEV
+===
+
+- We now support only Python 3.7 or greater.
+
 0.5.1 (2020-01-05)
 ==================
 
