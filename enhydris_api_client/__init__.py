@@ -28,84 +28,104 @@ class EnhydrisApiClient:
     def __exit__(self, *args):
         self.session.__exit__(*args)
 
+    def check_response(self, expected_status_code=None):
+        try:
+            self._raise_HTTPError_on_error(expected_status_code=expected_status_code)
+        except requests.HTTPError as e:
+            if self.response.text:
+                raise requests.HTTPError(
+                    f"{str(e)}. Server response: {self.response.text}"
+                )
+
+    def _raise_HTTPError_on_error(self, expected_status_code):
+        self._check_status_code_is_nonerror()
+        self._check_status_code_is_the_one_expected(expected_status_code)
+
+    def _check_status_code_is_nonerror(self):
+        self.response.raise_for_status()
+
+    def _check_status_code_is_the_one_expected(self, expected_status_code):
+        if expected_status_code and self.response.status_code != expected_status_code:
+            raise requests.HTTPError(
+                f"Expected status code {expected_status_code}; "
+                f"got {self.response.status_code} instead"
+            )
+
     def login(self, username, password):
         if not username:
             return
 
         # Get a csrftoken
         login_url = urljoin(self.base_url, "api/auth/login/")
-        data = "username={}&password={}".format(username, password)
-        r = self.session.post(login_url, data=data, allow_redirects=False)
-        r.raise_for_status()
-        self.session.headers.update({"Authorization": "token " + r.json()["key"]})
+        data = f"username={username}&password={password}"
+        self.response = self.session.post(login_url, data=data, allow_redirects=False)
+        self.check_response()
+        key = self.response.json()["key"]
+        self.session.headers.update({"Authorization": f"token {key}"})
 
     def get_station(self, station_id):
-        url = urljoin(self.base_url, "api/stations/{}/".format(station_id))
-        r = self.session.get(url)
-        r.raise_for_status()
-        return r.json()
+        url = urljoin(self.base_url, f"api/stations/{station_id}/")
+        self.response = self.session.get(url)
+        self.check_response()
+        return self.response.json()
 
     def post_station(self, data):
-        r = self.session.post(urljoin(self.base_url, "api/stations/"), data=data)
-        r.raise_for_status()
-        return r.json()["id"]
+        self.response = self.session.post(
+            urljoin(self.base_url, "api/stations/"), data=data
+        )
+        self.check_response()
+        return self.response.json()["id"]
 
     def put_station(self, station_id, data):
-        r = self.session.put(
-            urljoin(self.base_url, "api/stations/{}/".format(station_id)), data=data
+        self.response = self.session.put(
+            urljoin(self.base_url, f"api/stations/{station_id}/"), data=data
         )
-        r.raise_for_status()
+        self.check_response()
 
     def patch_station(self, station_id, data):
-        r = self.session.patch(
-            urljoin(self.base_url, "api/stations/{}/".format(station_id)), data=data
+        self.response = self.session.patch(
+            urljoin(self.base_url, f"api/stations/{station_id}/"), data=data
         )
-        r.raise_for_status()
+        self.check_response()
 
     def delete_station(self, station_id):
-        url = urljoin(self.base_url, "api/stations/{}/".format(station_id))
-        r = self.session.delete(url)
-        if r.status_code != 204:
-            raise requests.HTTPError()
+        url = urljoin(self.base_url, f"api/stations/{station_id}/")
+        self.response = self.session.delete(url)
+        self.check_response(expected_status_code=204)
 
     def get_timeseries(self, station_id, timeseries_id):
         url = urljoin(
-            self.base_url,
-            "api/stations/{}/timeseries/{}/".format(station_id, timeseries_id),
+            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/"
         )
-        r = self.session.get(url)
-        r.raise_for_status()
-        return r.json()
+        self.response = self.session.get(url)
+        self.check_response()
+        return self.response.json()
 
     def post_timeseries(self, station_id, data):
-        r = self.session.post(
-            urljoin(self.base_url, "api/stations/{}/timeseries/".format(station_id)),
-            data=data,
+        self.response = self.session.post(
+            urljoin(self.base_url, f"api/stations/{station_id}/timeseries/"), data=data
         )
-        r.raise_for_status()
-        return r.json()["id"]
+        self.check_response()
+        return self.response.json()["id"]
 
     def delete_timeseries(self, station_id, timeseries_id):
         url = urljoin(
-            self.base_url,
-            "api/stations/{}/timeseries/{}/".format(station_id, timeseries_id),
+            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/"
         )
-        r = self.session.delete(url)
-        if r.status_code != 204:
-            raise requests.HTTPError()
+        self.response = self.session.delete(url)
+        self.check_response(expected_status_code=204)
 
     def read_tsdata(self, station_id, timeseries_id, start_date=None, end_date=None):
         url = urljoin(
-            self.base_url,
-            "api/stations/{}/timeseries/{}/data/".format(station_id, timeseries_id),
+            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/data/"
         )
         params = {"fmt": "hts"}
         params["start_date"] = start_date and start_date.isoformat()
         params["end_date"] = end_date and end_date.isoformat()
-        r = self.session.get(url, params=params)
-        r.raise_for_status()
-        if r.text:
-            return HTimeseries(StringIO(r.text))
+        self.response = self.session.get(url, params=params)
+        self.check_response()
+        if self.response.text:
+            return HTimeseries(StringIO(self.response.text))
         else:
             return HTimeseries()
 
@@ -113,22 +133,23 @@ class EnhydrisApiClient:
         f = StringIO()
         ts.data.to_csv(f, header=False)
         url = urljoin(
-            self.base_url,
-            "api/stations/{}/timeseries/{}/data/".format(station_id, timeseries_id),
+            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/data/"
         )
-        r = self.session.post(url, data={"timeseries_records": f.getvalue()})
-        r.raise_for_status()
-        return r.text
+        self.response = self.session.post(
+            url, data={"timeseries_records": f.getvalue()}
+        )
+        self.check_response()
+        return self.response.text
 
     def get_ts_end_date(self, station_id, timeseries_id):
         url = urljoin(
             self.base_url,
-            "api/stations/{}/timeseries/{}/bottom/".format(station_id, timeseries_id),
+            f"api/stations/{station_id}/timeseries/{timeseries_id}/bottom/",
         )
-        r = self.session.get(url)
-        r.raise_for_status()
+        self.response = self.session.get(url)
+        self.check_response()
         try:
-            datestring = r.text.strip().split(",")[0]
+            datestring = self.response.text.strip().split(",")[0]
             return iso8601.parse_date(datestring, default_timezone=None)
         except (IndexError, iso8601.ParseError):
             return None

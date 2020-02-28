@@ -6,6 +6,7 @@ DEV
 ===
 
 - We now support only Python 3.7 or greater.
+- If there is an http error, the error message now includes the response body.
 
 0.5.1 (2020-01-05)
 ==================

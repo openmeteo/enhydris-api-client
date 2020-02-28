@@ -371,6 +371,75 @@ class UseAsContextManagerTestCase(TestCase):
         )
 
 
+class Error400TestCase(TestCase):
+    msg = "hello world"
+
+    @mock_session(
+        **{
+            "get.return_value.status_code": 400,
+            "get.return_value.text": "hello world",
+            "post.return_value.status_code": 400,
+            "post.return_value.text": "hello world",
+            "put.return_value.status_code": 400,
+            "put.return_value.text": "hello world",
+            "patch.return_value.status_code": 400,
+            "patch.return_value.text": "hello world",
+            "delete.return_value.status_code": 400,
+            "delete.return_value.text": "hello world",
+        }
+    )
+    def setUp(self, m):
+        self.client = EnhydrisApiClient("https://mydomain.com")
+
+    def test_login(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.login("john", "topsecret")
+
+    def test_get_station(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.get_station(42)
+
+    def test_post_station(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.post_station({})
+
+    def test_put_station(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.put_station(42, {})
+
+    def test_patch_station(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.patch_station(42, {})
+
+    def test_delete_station(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.delete_station(42)
+
+    def test_get_timeseries(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.get_timeseries(42, 43)
+
+    def test_post_timeseries(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.post_timeseries(42, {})
+
+    def test_delete_timeseries(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.delete_timeseries(42, 43)
+
+    def test_read_tsdata(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.read_tsdata(42, 43)
+
+    def test_post_tsdata(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.post_tsdata(42, 43, HTimeseries())
+
+    def test_get_ts_end_date(self):
+        with self.assertRaisesRegex(requests.HTTPError, self.msg):
+            self.client.get_ts_end_date(42, 43)
+
+
 @skipUnless(
     os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"), "Set ENHYDRIS_API_CLIENT_E2E_TEST"
 )
