@@ -2,8 +2,8 @@
 History
 =======
 
-DEV
-===
+1.0.0 (2020-02-28)
+==================
 
 - We now support only Python 3.7 or greater.
 - If there is an http error, the error message now includes the response body.
