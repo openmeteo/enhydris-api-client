@@ -93,31 +93,59 @@ class EnhydrisApiClient:
         self.response = self.session.delete(url)
         self.check_response(expected_status_code=204)
 
-    def get_timeseries(self, station_id, timeseries_id):
+    def list_timeseries(self, station_id, timeseries_group_id):
         url = urljoin(
-            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/"
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            "timeseries/",
+        )
+        self.response = self.session.get(url)
+        self.check_response()
+        return self.response.json()["results"]
+
+    def get_timeseries(self, station_id, timeseries_group_id, timeseries_id):
+        url = urljoin(
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            f"timeseries/{timeseries_id}/",
         )
         self.response = self.session.get(url)
         self.check_response()
         return self.response.json()
 
-    def post_timeseries(self, station_id, data):
+    def post_timeseries(self, station_id, timeseries_group_id, data):
         self.response = self.session.post(
-            urljoin(self.base_url, f"api/stations/{station_id}/timeseries/"), data=data
+            urljoin(
+                self.base_url,
+                f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+                "timeseries/",
+            ),
+            data=data,
         )
         self.check_response()
         return self.response.json()["id"]
 
-    def delete_timeseries(self, station_id, timeseries_id):
+    def delete_timeseries(self, station_id, timeseries_group_id, timeseries_id):
         url = urljoin(
-            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/"
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            f"timeseries/{timeseries_id}/",
         )
         self.response = self.session.delete(url)
         self.check_response(expected_status_code=204)
 
-    def read_tsdata(self, station_id, timeseries_id, start_date=None, end_date=None):
+    def read_tsdata(
+        self,
+        station_id,
+        timeseries_group_id,
+        timeseries_id,
+        start_date=None,
+        end_date=None,
+    ):
         url = urljoin(
-            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/data/"
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            f"timeseries/{timeseries_id}/data/",
         )
         params = {"fmt": "hts"}
         params["start_date"] = start_date and start_date.isoformat()
@@ -129,11 +157,13 @@ class EnhydrisApiClient:
         else:
             return HTimeseries()
 
-    def post_tsdata(self, station_id, timeseries_id, ts):
+    def post_tsdata(self, station_id, timeseries_group_id, timeseries_id, ts):
         f = StringIO()
         ts.data.to_csv(f, header=False)
         url = urljoin(
-            self.base_url, f"api/stations/{station_id}/timeseries/{timeseries_id}/data/"
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            f"timeseries/{timeseries_id}/data/",
         )
         self.response = self.session.post(
             url, data={"timeseries_records": f.getvalue()}
@@ -141,10 +171,11 @@ class EnhydrisApiClient:
         self.check_response()
         return self.response.text
 
-    def get_ts_end_date(self, station_id, timeseries_id):
+    def get_ts_end_date(self, station_id, timeseries_group_id, timeseries_id):
         url = urljoin(
             self.base_url,
-            f"api/stations/{station_id}/timeseries/{timeseries_id}/bottom/",
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
+            f"timeseries/{timeseries_id}/bottom/",
         )
         self.response = self.session.get(url)
         self.check_response()
