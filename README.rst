@@ -39,7 +39,7 @@ Example
     from enhydris_api_client import EnhydrisApiClient
 
     with EnhydrisApiClient("https://openmeteo.org") as api_client:
-        api_client.login("joe", "topsecret")
+        api_client.get_token("joe", "topsecret")
 
         # Get a dict with attrs of station with id=42
         station = api_client.get_model(Station, 42)
@@ -51,7 +51,7 @@ Example
 Reference
 =========
 
-**EnhydrisApiClient(base_url)**
+**EnhydrisApiClient(base_url, token=None)**
 
 Creates and returns an api client. It can also be used as a context
 manager, though this is not necessary. If not used as a context manager,
@@ -59,9 +59,9 @@ you might get warnings about unclosed sockets.
 
 ``EnhydrisApiClient`` objects have the following methods:
 
-**.login(username, password)**
+**.get_token(username, password)**
 
-Logins to Enhydris. Raises an exception if unsuccessful.
+Logins to Enhydris and returns ``token``. Raises an exception if unsuccessful.
 
 **.get_station(id)**
 

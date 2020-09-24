@@ -12,6 +12,24 @@ from htimeseries import HTimeseries
 from enhydris_api_client import EnhydrisApiClient
 
 
+def assert_not_called_with(self, *args, **kwargs):
+    """
+    Raises an AssertionError if a mock with the specified argument is not
+    called.
+    """
+    try:
+        self.assert_called_with(*args, **kwargs)
+    except AssertionError:
+        return
+    raise AssertionError(
+        f"Expected {self._format_mock_call_signature(args, kwargs)} to not be called"
+    )
+
+
+# Attach the `assert_not_called_with` to the Mock library
+mock.Mock.assert_not_called_with = assert_not_called_with
+
+
 def mock_session(**kwargs):
     """Mock requests.Session.
 
@@ -37,7 +55,7 @@ def mock_session(**kwargs):
     return mock.patch("requests.Session", **kwargs)
 
 
-class SuccessfulLoginTestCase(TestCase):
+class GetTokenTestCase(TestCase):
     @mock_session(
         **{
             "get.return_value.cookies": {"csrftoken": "reallysecret"},
@@ -47,7 +65,7 @@ class SuccessfulLoginTestCase(TestCase):
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.client.login("admin", "topsecret")
+        self.client.get_token("admin", "topsecret")
 
     def test_makes_post_request(self):
         self.mock_requests_session.return_value.post.assert_called_once_with(
@@ -57,20 +75,20 @@ class SuccessfulLoginTestCase(TestCase):
         )
 
 
-class FailedLoginTestCase(TestCase):
+class GetTokenFailTestCase(TestCase):
     @mock_session(**{"post.return_value.status_code": 404})
     def test_raises_exception_on_post_failure(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            self.client.login("admin", "topsecret")
+            self.client.get_token("admin", "topsecret")
 
 
-class LoginWithEmptyUsernameTestCase(TestCase):
+class GetTokenEmptyUsernameTestCase(TestCase):
     @mock_session()
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
-        self.client.login("", "useless_password")
+        self.client.get_token("", "useless_password")
 
     def test_does_not_make_get_request(self):
         self.mock_requests_session.get.assert_not_called()
@@ -414,9 +432,9 @@ class Error400TestCase(TestCase):
     def setUp(self, m):
         self.client = EnhydrisApiClient("https://mydomain.com")
 
-    def test_login(self):
+    def test_get_token(self):
         with self.assertRaisesRegex(requests.HTTPError, self.msg):
-            self.client.login("john", "topsecret")
+            self.client.get_token("john", "topsecret")
 
     def test_get_station(self):
         with self.assertRaisesRegex(requests.HTTPError, self.msg):
@@ -463,6 +481,22 @@ class Error400TestCase(TestCase):
             self.client.get_ts_end_date(41, 42, 43)
 
 
+class EnhydrisApiClientTestCase(TestCase):
+    @mock.patch("requests.Session")
+    def test_client_with_token(self, mock_requests_session):
+        EnhydrisApiClient("https://mydomain.com/", token="test-token")
+        mock_requests_session.return_value.headers.update.assert_any_call(
+            {"Authorization": "token test-token"}
+        )
+
+    @mock.patch("requests.Session")
+    def test_client_without_token(self, mock_requests_session):
+        EnhydrisApiClient("https://mydomain.com/")
+        mock_requests_session.return_value.headers.update.assert_not_called_with(
+            {"Authorization": "token test-token"}
+        )
+
+
 @skipUnless(
     os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"), "Set ENHYDRIS_API_CLIENT_E2E_TEST"
 )
@@ -472,8 +506,7 @@ class EndToEndTestCase(TestCase):
     like this:
         ENHYDRIS_API_CLIENT_E2E_TEST='
             {"base_url": "http://localhost:8001",
-             "username": "admin",
-             "password": "topsecret",
+             "token": "topsecrettokenkey",
              "owner_id": 9,
              "time_zone_id": 3,
              "unit_of_measurement_id": 18,
@@ -487,16 +520,15 @@ class EndToEndTestCase(TestCase):
     things are normally cleaned up (created objects will be deleted), id serial
     numbers will be affected and things might not be cleaned up if there is an error.
 
-    It would be better to specify only base_url, username and password, and let the
+    It would be better to specify only base_url and token, and let the
     test create a user, a station type, a time zone, etc. However the Enhydris API
     currently does not allow creation of these types.
     """
 
     def setUp(self):
         v = json.loads(os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"))
-        self.client = EnhydrisApiClient(v["base_url"])
-        self.username = v["username"]
-        self.password = v["password"]
+        self.token = v["token"]
+        self.client = EnhydrisApiClient(v["base_url"], token=self.token)
         self.owner_id = v["owner_id"]
         self.time_zone_id = v["time_zone_id"]
         self.unit_of_measurement_id = v["unit_of_measurement_id"]
@@ -505,18 +537,9 @@ class EndToEndTestCase(TestCase):
         self.timeseries_group_id = v["timeseries_group_id"]
 
     def test_e2e(self):
-        # Verify we are logged out
-        r = self.client.session.get(
-            self.client.base_url + "/admin/", allow_redirects=False
-        )
-        self.assertEqual(r.status_code, 302)
-        self.assertEqual(r.headers["Location"], "/admin/login/?next=/admin/")
-
-        # Login and verify we're logged on
-        self.client.login(self.username, self.password)
-        r = self.client.session.get(self.client.base_url + "/admin/")
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue("Log out" in r.text)
+        # Verify we're authenticated
+        token = self.client.session.headers.get("Authorization")
+        self.assertEqual(token, f"token {self.token}")
 
         # Create a test station
         tmp_station_id = self.client.post_station(

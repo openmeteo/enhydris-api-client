@@ -7,9 +7,12 @@ from htimeseries import HTimeseries
 
 
 class EnhydrisApiClient:
-    def __init__(self, base_url):
+    def __init__(self, base_url, token=None):
         self.base_url = base_url
+        self.token = token
         self.session = requests.Session()
+        if token is not None:
+            self.session.headers.update({"Authorization": f"token {self.token}"})
 
         # My understanding from requests' documentation is that when I make a post
         # request, it shouldn't be necessary to specify Content-Type:
@@ -51,7 +54,7 @@ class EnhydrisApiClient:
                 f"got {self.response.status_code} instead"
             )
 
-    def login(self, username, password):
+    def get_token(self, username, password):
         if not username:
             return
 
@@ -62,6 +65,7 @@ class EnhydrisApiClient:
         self.check_response()
         key = self.response.json()["key"]
         self.session.headers.update({"Authorization": f"token {key}"})
+        return key
 
     def get_station(self, station_id):
         url = urljoin(self.base_url, f"api/stations/{station_id}/")
