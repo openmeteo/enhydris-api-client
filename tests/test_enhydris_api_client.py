@@ -12,24 +12,6 @@ from htimeseries import HTimeseries
 from enhydris_api_client import EnhydrisApiClient
 
 
-def assert_not_called_with(self, *args, **kwargs):
-    """
-    Raises an AssertionError if a mock with the specified argument is not
-    called.
-    """
-    try:
-        self.assert_called_with(*args, **kwargs)
-    except AssertionError:
-        return
-    raise AssertionError(
-        f"Expected {self._format_mock_call_signature(args, kwargs)} to not be called"
-    )
-
-
-# Attach the `assert_not_called_with` to the Mock library
-mock.Mock.assert_not_called_with = assert_not_called_with
-
-
 def mock_session(**kwargs):
     """Mock requests.Session.
 
@@ -486,13 +468,6 @@ class EnhydrisApiClientTestCase(TestCase):
     def test_client_with_token(self, mock_requests_session):
         EnhydrisApiClient("https://mydomain.com/", token="test-token")
         mock_requests_session.return_value.headers.update.assert_any_call(
-            {"Authorization": "token test-token"}
-        )
-
-    @mock.patch("requests.Session")
-    def test_client_without_token(self, mock_requests_session):
-        EnhydrisApiClient("https://mydomain.com/")
-        mock_requests_session.return_value.headers.update.assert_not_called_with(
             {"Authorization": "token test-token"}
         )
 
