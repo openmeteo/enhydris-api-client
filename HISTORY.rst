@@ -2,6 +2,16 @@
 History
 =======
 
+2.0.0 (2020-10-06)
+==================
+
+- We now support the time series groups of Enhydris 3. Earlier Enhydris
+  versions are unsupported. Use enhydris-api-client v1 for Enhydris v2.
+- We now use token authentication. Using a username and password have
+  been deprecated and will be removed in a future version. Accordingly,
+  the ``.login()`` method has been removed; it has been replaced with
+  the deprecated ``.get_token()`` method.
+
 1.0.0 (2020-02-28)
 ==================
 
