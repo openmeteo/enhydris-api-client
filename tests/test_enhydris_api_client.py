@@ -504,12 +504,16 @@ class EndToEndTestCase(TestCase):
         v = json.loads(os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"))
         self.token = v["token"]
         self.client = EnhydrisApiClient(v["base_url"], token=self.token)
+        self.client.__enter__()
         self.owner_id = v["owner_id"]
         self.time_zone_id = v["time_zone_id"]
         self.unit_of_measurement_id = v["unit_of_measurement_id"]
         self.variable_id = v["variable_id"]
         self.station_id = v["station_id"]
         self.timeseries_group_id = v["timeseries_group_id"]
+
+    def tearDown(self):
+        self.client.__exit__()
 
     def test_e2e(self):
         # Verify we're authenticated
@@ -520,7 +524,6 @@ class EndToEndTestCase(TestCase):
         tmp_station_id = self.client.post_station(
             {
                 "name": "My station",
-                "is_automatic": True,
                 "copyright_holder": "Joe User",
                 "copyright_years": "2019",
                 "geom": "POINT(20.94565 39.12102)",
@@ -538,7 +541,6 @@ class EndToEndTestCase(TestCase):
         self.client.patch_station(tmp_station_id, {"name": "New name"})
         station = self.client.get_station(tmp_station_id)
         self.assertEqual(station["name"], "New name")
-        self.assertTrue(station["is_automatic"])  # Remains as it was
 
         # Put station and verify
         self.client.put_station(
@@ -554,7 +556,6 @@ class EndToEndTestCase(TestCase):
         )
         station = self.client.get_station(tmp_station_id)
         self.assertEqual(station["name"], "Newer name")
-        self.assertFalse(station["is_automatic"])  # Has been reset
 
         # Delete station
         self.client.delete_station(tmp_station_id)
@@ -566,7 +567,7 @@ class EndToEndTestCase(TestCase):
             self.station_id,
             self.timeseries_group_id,
             data={
-                "type": "Processed",
+                "type": "Regularized",
                 "time_step": "10min",
                 "timeseries_group": self.timeseries_group_id,
             },
@@ -574,7 +575,7 @@ class EndToEndTestCase(TestCase):
         timeseries = self.client.get_timeseries(
             self.station_id, self.timeseries_group_id, self.timeseries_id
         )
-        self.assertEqual(timeseries["type"], "Processed")
+        self.assertEqual(timeseries["type"], "Regularized")
 
         # Post time series data
         self.client.post_tsdata(
