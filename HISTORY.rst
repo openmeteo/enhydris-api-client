@@ -2,6 +2,11 @@
 History
 =======
 
+2.0.1 (2021-08-31)
+==================
+
+- Updated dependences (the version of htimeseries required was too old).
+
 2.0.0 (2020-10-06)
 ==================
 
