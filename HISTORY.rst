@@ -2,6 +2,15 @@
 History
 =======
 
+3.0.0 (2022-12-04)
+==================
+
+- Requires Enhydris 4 and htimeseries 4, and therefore requires aware
+  HTimeseries objects.
+- Requires specifying time zone when downloading time series data.
+- Support for creating, retrieving, updating, and deleting time series
+  groups.
+
 2.0.1 (2021-08-31)
 ==================
 

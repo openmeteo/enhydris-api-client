@@ -8,7 +8,7 @@ with open("README.rst") as readme_file:
 with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
-requirements = ["iso8601", "requests>=1,<3", "htimeseries>=3,<4"]
+requirements = ["iso8601", "requests>=1,<3", "htimeseries>=4,<5"]
 
 setup_requirements = []
 
@@ -24,6 +24,10 @@ setup(
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
     ],
     description="Python API client for Enhydris",
     install_requires=requirements,

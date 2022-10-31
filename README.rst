@@ -76,6 +76,15 @@ argument (for those methods that receive one) is a dictionary.
 ``get_station()`` returns a dictionary with the data for the station.
 ``post_station()`` returns the created station's id.
 
+| **.get_timeseries_group(station_id, timeseries_group_id)**
+| **.post_timeseries_group(station_id, timeseries_group_id, data)**
+| **.put_timeseries_group(station_id, timeseries_group_id, data)**
+| **.patch_timeseries_group(station_id, timeseries_group_id, data)**
+| **.delete_timeseries_group(station_id, timeseries_group_id)**
+
+Methods that create, retrieve, update or delete time series groups.
+Similar to the ones for station.
+
 | **.list_timeseries(station_id, timeseries_group_id)**
 | **.get_timeseries(station_id, timeseries_group_id, timeseries_id)**
 | **.post_timeseries(station_id, timeseries_group_id, data)**
@@ -84,20 +93,22 @@ argument (for those methods that receive one) is a dictionary.
 Methods that create, retrieve or delete time series. Similar to the ones
 for station. ``list_timeseries()`` returns a list of dictionaries.
 
-| **.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None)**
+| **.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None, timezone="UTC")**
 | **.post_tsdata(station_id, timeseries_group_id, timeseries_id, ts)**
-| **.get_ts_end_date(station_id, timeseries_group_id, timeseries_id)**
+| **.get_ts_end_date(station_id, timeseries_group_id, timeseries_id, timezone="UTC")**
 
 Methods that retrieve or update time series data.
 
 ``read_ts_data()`` retrieves the time series data into a htimeseries
-object that it returns. If ``start_date`` and/or ``end_date`` are
-specified, only the part of the time series between these dates is
-retrieved.
+object that it returns. If ``start_date`` and/or ``end_date`` (aware
+datetime objects) are specified, only the part of the time series
+between these dates is retrieved. The timestamps are returned in the
+specified time zone.
 
 ``post_tsdata() `` posts a time series to Enhydris, appending the
 records to any already existing.  ``ts`` is a htimeseries object.
 
 ``get_ts_end_date()`` returns a ``datetime`` object which is the last
 timestamp of the time series. If the time series is empty it returns
-``None``.
+``None``. The returned timestamp is always naive, but it is in the specified
+``timezone``.

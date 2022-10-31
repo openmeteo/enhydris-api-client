@@ -1,6 +1,11 @@
 from io import StringIO
 from urllib.parse import urljoin
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
 import iso8601
 import requests
 from htimeseries import HTimeseries
@@ -97,6 +102,46 @@ class EnhydrisApiClient:
         self.response = self.session.delete(url)
         self.check_response(expected_status_code=204)
 
+    def get_timeseries_group(self, station_id, timeseries_group_id):
+        url = urljoin(
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/",
+        )
+        self.response = self.session.get(url)
+        self.check_response()
+        return self.response.json()
+
+    def post_timeseries_group(self, station_id, data):
+        url = urljoin(self.base_url, f"api/stations/{station_id}/timeseriesgroups/")
+        self.response = self.session.post(url, data=data)
+        self.check_response()
+        return self.response.json()["id"]
+
+    def put_timeseries_group(self, station_id, timeseries_group_id, data):
+        url = urljoin(
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/",
+        )
+        self.response = self.session.put(url, data=data)
+        self.check_response()
+        return self.response.json()["id"]
+
+    def patch_timeseries_group(self, station_id, timeseries_group_id, data):
+        url = urljoin(
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/",
+        )
+        self.response = self.session.patch(url, data=data)
+        self.check_response()
+
+    def delete_timeseries_group(self, station_id, timeseries_group_id):
+        url = urljoin(
+            self.base_url,
+            f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/",
+        )
+        self.response = self.session.delete(url)
+        self.check_response(expected_status_code=204)
+
     def list_timeseries(self, station_id, timeseries_group_id):
         url = urljoin(
             self.base_url,
@@ -145,6 +190,7 @@ class EnhydrisApiClient:
         timeseries_id,
         start_date=None,
         end_date=None,
+        timezone="UTC",
     ):
         url = urljoin(
             self.base_url,
@@ -152,17 +198,32 @@ class EnhydrisApiClient:
             f"timeseries/{timeseries_id}/data/",
         )
         params = {"fmt": "hts"}
-        params["start_date"] = start_date and start_date.isoformat()
-        params["end_date"] = end_date and end_date.isoformat()
+        tzinfo = ZoneInfo(timezone)
+        dates_are_aware = (start_date is None or start_date.tzinfo is not None) and (
+            end_date is None or end_date.tzinfo is not None
+        )
+        if not dates_are_aware:
+            raise ValueError("start_date and end_date must be aware")
+        params["start_date"] = (
+            start_date and start_date.astimezone(tzinfo).isoformat()[:19]
+        )
+        params["end_date"] = end_date and end_date.astimezone(tzinfo).isoformat()[:19]
+        params["timezone"] = timezone
         self.response = self.session.get(url, params=params)
         self.check_response()
         if self.response.text:
-            return HTimeseries(StringIO(self.response.text))
+            return HTimeseries(
+                StringIO(self.response.text), default_tzinfo=ZoneInfo(timezone)
+            )
         else:
             return HTimeseries()
 
     def post_tsdata(self, station_id, timeseries_group_id, timeseries_id, ts):
         f = StringIO()
+        try:
+            ts.data.index = ts.data.index.tz_convert("UTC")
+        except AttributeError:
+            assert ts.data.empty
         ts.data.to_csv(f, header=False)
         url = urljoin(
             self.base_url,
@@ -170,18 +231,20 @@ class EnhydrisApiClient:
             f"timeseries/{timeseries_id}/data/",
         )
         self.response = self.session.post(
-            url, data={"timeseries_records": f.getvalue()}
+            url, data={"timeseries_records": f.getvalue(), "timezone": "UTC"}
         )
         self.check_response()
         return self.response.text
 
-    def get_ts_end_date(self, station_id, timeseries_group_id, timeseries_id):
+    def get_ts_end_date(
+        self, station_id, timeseries_group_id, timeseries_id, timezone="UTC"
+    ):
         url = urljoin(
             self.base_url,
             f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
             f"timeseries/{timeseries_id}/bottom/",
         )
-        self.response = self.session.get(url)
+        self.response = self.session.get(url, params={"timezone": timezone})
         self.check_response()
         try:
             datestring = self.response.text.strip().split(",")[0]

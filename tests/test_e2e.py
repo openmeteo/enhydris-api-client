@@ -5,6 +5,11 @@ import textwrap
 from io import StringIO
 from unittest import TestCase, skipUnless
 
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
 import pandas as pd
 import requests
 from htimeseries import HTimeseries
@@ -25,21 +30,14 @@ class EndToEndTestCase(TestCase):
             {"base_url": "http://localhost:8001",
              "token": "topsecrettokenkey",
              "owner_id": 9,
-             "time_zone_id": 3,
-             "unit_of_measurement_id": 18,
              "variable_id": 22,
-             "station_id": 1403,
-             "timeseries_group_id": 513,
+             "unit_of_measurement_id": 18
              }
         '
     This should point to an Enhydris server. Avoid using a production database for
     that; the testing functionality will write objects to the database. Although
     things are normally cleaned up (created objects will be deleted), id serial
     numbers will be affected and things might not be cleaned up if there is an error.
-
-    It would be better to specify only base_url and token, and let the
-    test create a user, a station type, a time zone, etc. However the Enhydris API
-    currently does not allow creation of these types.
     """
 
     def setUp(self):
@@ -48,11 +46,8 @@ class EndToEndTestCase(TestCase):
         self.client = EnhydrisApiClient(v["base_url"], token=self.token)
         self.client.__enter__()
         self.owner_id = v["owner_id"]
-        self.time_zone_id = v["time_zone_id"]
-        self.unit_of_measurement_id = v["unit_of_measurement_id"]
         self.variable_id = v["variable_id"]
-        self.station_id = v["station_id"]
-        self.timeseries_group_id = v["timeseries_group_id"]
+        self.unit_of_measurement_id = v["unit_of_measurement_id"]
 
     def tearDown(self):
         self.client.__exit__()
@@ -71,6 +66,7 @@ class EndToEndTestCase(TestCase):
                 "geom": "POINT(20.94565 39.12102)",
                 "original_srid": 4326,
                 "owner": self.owner_id,
+                "display_timezone": "Etc/GMT-1",
             }
         )
 
@@ -99,14 +95,25 @@ class EndToEndTestCase(TestCase):
         station = self.client.get_station(tmp_station_id)
         self.assertEqual(station["name"], "Newer name")
 
-        # Delete station
-        self.client.delete_station(tmp_station_id)
-        with self.assertRaises(requests.HTTPError):
-            self.client.get_station(tmp_station_id)
+        # Create a time series group and verify it was created
+        self.timeseries_group_id = self.client.post_timeseries_group(
+            tmp_station_id,
+            data={
+                "name": "My time series group",
+                "gentity": tmp_station_id,
+                "variable": self.variable_id,
+                "unit_of_measurement": self.unit_of_measurement_id,
+                "precision": 2,
+            },
+        )
+        timeseries_group = self.client.get_timeseries_group(
+            tmp_station_id, self.timeseries_group_id
+        )
+        self.assertEqual(timeseries_group["name"], "My time series group")
 
         # Create a time series and verify it was created
         self.timeseries_id = self.client.post_timeseries(
-            self.station_id,
+            tmp_station_id,
             self.timeseries_group_id,
             data={
                 "type": "Regularized",
@@ -115,13 +122,13 @@ class EndToEndTestCase(TestCase):
             },
         )
         timeseries = self.client.get_timeseries(
-            self.station_id, self.timeseries_group_id, self.timeseries_id
+            tmp_station_id, self.timeseries_group_id, self.timeseries_id
         )
         self.assertEqual(timeseries["type"], "Regularized")
 
         # Post time series data
         self.client.post_tsdata(
-            self.station_id,
+            tmp_station_id,
             self.timeseries_group_id,
             self.timeseries_id,
             test_timeseries_hts,
@@ -129,14 +136,33 @@ class EndToEndTestCase(TestCase):
 
         # Get the last date and check it
         date = self.client.get_ts_end_date(
-            self.station_id, self.timeseries_group_id, self.timeseries_id
+            tmp_station_id,
+            self.timeseries_group_id,
+            self.timeseries_id,
         )
         self.assertEqual(date, dt.datetime(2014, 1, 5, 8, 0))
 
+        # Get the last date in a different timezone from UTC
+        date = self.client.get_ts_end_date(
+            tmp_station_id,
+            self.timeseries_group_id,
+            self.timeseries_id,
+            timezone="Etc/GMT-5",
+        )
+        self.assertEqual(date, dt.datetime(2014, 1, 5, 13, 0))
+
         # Get all time series data and check it
         hts = self.client.read_tsdata(
-            self.station_id, self.timeseries_group_id, self.timeseries_id
+            tmp_station_id, self.timeseries_group_id, self.timeseries_id
         )
+        try:
+            # Compatibility with older Python or pandas versions (such as Python 3.7
+            # with pandas 0.23): comparison may fail if tzinfo, although practically the
+            # same thing, is a different object
+            if hts.data.index.tz.offset == dt.timedelta(0):
+                hts.data.index = hts.data.index.tz_convert(dt.timezone.utc)
+        except AttributeError:
+            pass
         pd.testing.assert_frame_equal(hts.data, test_timeseries_hts.data)
 
         # The other attributes should have been set too.
@@ -144,29 +170,44 @@ class EndToEndTestCase(TestCase):
 
         # Get part of the time series data and check it
         hts = self.client.read_tsdata(
-            self.station_id,
+            tmp_station_id,
             self.timeseries_group_id,
             self.timeseries_id,
-            start_date=dt.datetime(2014, 1, 3, 8, 0),
-            end_date=dt.datetime(2014, 1, 4, 8, 0),
+            start_date=dt.datetime(2014, 1, 3, 8, 0, tzinfo=dt.timezone.utc),
+            end_date=dt.datetime(2014, 1, 4, 8, 0, tzinfo=dt.timezone.utc),
+            timezone="Etc/GMT-1",
         )
         expected_result = HTimeseries(
             StringIO(
                 textwrap.dedent(
                     """\
-                    2014-01-03 08:00,13.0,
-                    2014-01-04 08:00,14.0,
+                    2014-01-03 09:00,13.0,
+                    2014-01-04 09:00,14.0,
                     """
                 )
-            )
+            ),
+            default_tzinfo=ZoneInfo("Etc/GMT-1"),
         )
+        try:
+            # Compatibility with older Python or pandas versions (such as Python 3.7
+            # with pandas 0.23): comparison may fail if tzinfo, although practically the
+            # same thing, is a different object
+            if hts.data.index.tz.offset == dt.timedelta(minutes=60):
+                hts.data.index = hts.data.index.tz_convert(ZoneInfo("Etc/GMT-1"))
+        except AttributeError:
+            pass
         pd.testing.assert_frame_equal(hts.data, expected_result.data)
 
         # Delete the time series and verify
         self.client.delete_timeseries(
-            self.station_id, self.timeseries_group_id, self.timeseries_id
+            tmp_station_id, self.timeseries_group_id, self.timeseries_id
         )
         with self.assertRaises(requests.HTTPError):
             self.client.get_timeseries(
-                self.station_id, self.timeseries_group_id, self.timeseries_id
+                tmp_station_id, self.timeseries_group_id, self.timeseries_id
             )
+
+        # Delete station
+        self.client.delete_station(tmp_station_id)
+        with self.assertRaises(requests.HTTPError):
+            self.client.get_station(tmp_station_id)
