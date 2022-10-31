@@ -65,59 +65,39 @@ in future versions.
 (Deprecated.) Gets an API token from Enhydris and thereafter uses it in
 subsequent requests. The method will be removed in future versions.
 
-**.get_station(id)**
+| **.get_station(id)**
+| **.post_station(data)**
+| **.put_station(station_id, data)**
+| **.patch_station(station_id, data)**
+| **.delete_station(station_id)**
 
-Returns a dict with the data for the station with the given ``id``.
+Methods that create, retrieve, update or delete stations. The ``data``
+argument (for those methods that receive one) is a dictionary.
+``get_station()`` returns a dictionary with the data for the station.
+``post_station()`` returns the created station's id.
 
-**.post_station(data)**
+| **.list_timeseries(station_id, timeseries_group_id)**
+| **.get_timeseries(station_id, timeseries_group_id, timeseries_id)**
+| **.post_timeseries(station_id, timeseries_group_id, data)**
+| **.delete_timeseries(station_id, timeseries_group_id, timeseries_id)**
 
-Creates a new station, with its data given by dictionary ``data``, and
-returns its id.
+Methods that create, retrieve or delete time series. Similar to the ones
+for station. ``list_timeseries()`` returns a list of dictionaries.
 
-**.put_station(station_id, data)**
+| **.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None)**
+| **.post_tsdata(station_id, timeseries_group_id, timeseries_id, ts)**
+| **.get_ts_end_date(station_id, timeseries_group_id, timeseries_id)**
 
-Replaces the station's attributes with ``data`` (a dictionary). Any
-unspecified attributes are set to null.
+Methods that retrieve or update time series data.
 
-**.patch_station(station_id, data)**
+``read_ts_data()`` retrieves the time series data into a htimeseries
+object that it returns. If ``start_date`` and/or ``end_date`` are
+specified, only the part of the time series between these dates is
+retrieved.
 
-Same as ``put_station()`` except that any attribute not specified in
-``data`` is untouched.
+``post_tsdata() `` posts a time series to Enhydris, appending the
+records to any already existing.  ``ts`` is a htimeseries object.
 
-**.delete_station(station_id)**
-
-Deletes the specified station.
-
-**.list_timeseries(station_id, timeseries_group_id)**
-
-Returns a list of time series in the specified group. Each item in the
-list is a dict with the data for the time series.
-
-**.get_timeseries(station_id, timeseries_group_id, timeseries_id)**
-
-Returns a dict with the data for the given time series.
-
-**.post_timeseries(station_id, timeseries_group_id, data)**
-
-Creates a new time series, with its data given by dictionary ``data``,
-and returns its id.
-
-**.delete_timeseries(station_id, timeseries_group_id, timeseries_id)**
-
-Deletes the specified time series.
-
-**.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None)**
-
-Retrieves the time series data into a htimeseries object that it
-returns. If ``start_date`` and/or ``end_date`` are specified, only the
-part of the time series between these dates is retrieved.
-
-**.post_tsdata(station_id, timeseries_group_id, timeseries_id, ts)**
-
-Posts a time series to Enhydris, appending the records to any already
-existing.  ``ts`` is a htimeseries object.
-
-**.get_ts_end_date(station_id, timeseries_group_id, timeseries_id)**
-
-Returns a ``datetime`` object which is the last timestamp of the time
-series. If the time series is empty it returns ``None``.
+``get_ts_end_date()`` returns a ``datetime`` object which is the last
+timestamp of the time series. If the time series is empty it returns
+``None``.
