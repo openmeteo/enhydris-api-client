@@ -2,6 +2,14 @@
 History
 =======
 
+4.0.0 (2024-04-16)
+==================
+
+- Requires htimeseries 7.
+- When downloading time series data without specifying the time zone, it
+  uses the ``display_timezone`` of that Enhydris station, whereas in
+  3.x.x it used UTC. The behaviour is now similar to that of 2.x.x.
+
 3.0.1 (2024-04-14)
 ==================
 
@@ -12,7 +20,7 @@ History
 
 - Requires Enhydris 4 and htimeseries 4, and therefore requires aware
   HTimeseries objects.
-- Requires specifying time zone when downloading time series data.
+- Supports specifying time zone when downloading time series data.
 - Support for creating, retrieving, updating, and deleting time series
   groups.
 

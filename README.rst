@@ -93,9 +93,9 @@ Similar to the ones for station.
 Methods that create, retrieve or delete time series. Similar to the ones
 for station. ``list_timeseries()`` returns a list of dictionaries.
 
-| **.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None, timezone="UTC")**
+| **.read_tsdata(station_id, timeseries_group_id, timeseries_id, start_date=None, end_date=None, timezone=None)**
 | **.post_tsdata(station_id, timeseries_group_id, timeseries_id, ts)**
-| **.get_ts_end_date(station_id, timeseries_group_id, timeseries_id, timezone="UTC")**
+| **.get_ts_end_date(station_id, timeseries_group_id, timeseries_id, timezone=None)**
 
 Methods that retrieve or update time series data.
 
@@ -103,7 +103,8 @@ Methods that retrieve or update time series data.
 object that it returns. If ``start_date`` and/or ``end_date`` (aware
 datetime objects) are specified, only the part of the time series
 between these dates is retrieved. The timestamps are returned in the
-specified time zone.
+specified time zone. If unspecified, then they are returned in the time
+zone specified by the station's display_timezone_.
 
 ``post_tsdata() `` posts a time series to Enhydris, appending the
 records to any already existing.  ``ts`` is a htimeseries object.
@@ -111,4 +112,6 @@ records to any already existing.  ``ts`` is a htimeseries object.
 ``get_ts_end_date()`` returns a ``datetime`` object which is the last
 timestamp of the time series. If the time series is empty it returns
 ``None``. The returned timestamp is always naive, but it is in the specified
-``timezone``.
+``timezone`` (or the station's display_timezone_ if unspecified).
+
+.. _display_timezone: https://enhydris.readthedocs.io/en/latest/dev/database.html#enhydris.models.Gentity.display_timezone

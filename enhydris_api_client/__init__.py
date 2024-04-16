@@ -1,3 +1,4 @@
+from copy import copy
 from io import StringIO
 from urllib.parse import urljoin
 
@@ -190,7 +191,7 @@ class EnhydrisApiClient:
         timeseries_id,
         start_date=None,
         end_date=None,
-        timezone="UTC",
+        timezone=None,
     ):
         url = urljoin(
             self.base_url,
@@ -198,33 +199,30 @@ class EnhydrisApiClient:
             f"timeseries/{timeseries_id}/data/",
         )
         params = {"fmt": "hts"}
-        tzinfo = ZoneInfo(timezone)
+        tzinfo = ZoneInfo(timezone) if timezone else None
         dates_are_aware = (start_date is None or start_date.tzinfo is not None) and (
             end_date is None or end_date.tzinfo is not None
         )
         if not dates_are_aware:
             raise ValueError("start_date and end_date must be aware")
-        params["start_date"] = (
-            start_date and start_date.astimezone(tzinfo).isoformat()[:19]
-        )
-        params["end_date"] = end_date and end_date.astimezone(tzinfo).isoformat()[:19]
+        params["start_date"] = start_date and start_date.isoformat()
+        params["end_date"] = end_date and end_date.isoformat()
         params["timezone"] = timezone
         self.response = self.session.get(url, params=params)
         self.check_response()
         if self.response.text:
-            return HTimeseries(
-                StringIO(self.response.text), default_tzinfo=ZoneInfo(timezone)
-            )
+            return HTimeseries(StringIO(self.response.text), default_tzinfo=tzinfo)
         else:
             return HTimeseries()
 
     def post_tsdata(self, station_id, timeseries_group_id, timeseries_id, ts):
         f = StringIO()
+        data = copy(ts.data)
         try:
-            ts.data.index = ts.data.index.tz_convert("UTC")
+            data.index = data.index.tz_convert("UTC")
         except AttributeError:
-            assert ts.data.empty
-        ts.data.to_csv(f, header=False)
+            assert data.empty
+        data.to_csv(f, header=False)
         url = urljoin(
             self.base_url,
             f"api/stations/{station_id}/timeseriesgroups/{timeseries_group_id}/"
@@ -237,7 +235,7 @@ class EnhydrisApiClient:
         return self.response.text
 
     def get_ts_end_date(
-        self, station_id, timeseries_group_id, timeseries_id, timezone="UTC"
+        self, station_id, timeseries_group_id, timeseries_id, timezone=None
     ):
         url = urljoin(
             self.base_url,

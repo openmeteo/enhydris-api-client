@@ -16,13 +16,15 @@ from htimeseries import HTimeseries
 
 from enhydris_api_client import EnhydrisApiClient
 
-from . import test_timeseries_hts
+from . import AssertFrameEqualMixin, test_timeseries_htimeseries
+
+UTC_PLUS_2 = dt.timezone(dt.timedelta(hours=2))
 
 
 @skipUnless(
     os.getenv("ENHYDRIS_API_CLIENT_E2E_TEST"), "Set ENHYDRIS_API_CLIENT_E2E_TEST"
 )
-class EndToEndTestCase(TestCase):
+class EndToEndTestCase(AssertFrameEqualMixin, TestCase):
     """End-to-end test against a real Enhydris instance.
     To execute this test, specify the ENHYDRIS_API_CLIENT_E2E_TEST environment variable
     like this:
@@ -131,7 +133,7 @@ class EndToEndTestCase(TestCase):
             tmp_station_id,
             self.timeseries_group_id,
             self.timeseries_id,
-            test_timeseries_hts,
+            test_timeseries_htimeseries,
         )
 
         # Get the last date and check it
@@ -140,16 +142,16 @@ class EndToEndTestCase(TestCase):
             self.timeseries_group_id,
             self.timeseries_id,
         )
-        self.assertEqual(date, dt.datetime(2014, 1, 5, 8, 0))
+        self.assertEqual(date, dt.datetime(2014, 1, 5, 7, 0))
 
-        # Get the last date in a different timezone from UTC
+        # Get the last date in a different timezone from the default
         date = self.client.get_ts_end_date(
             tmp_station_id,
             self.timeseries_group_id,
             self.timeseries_id,
             timezone="Etc/GMT-5",
         )
-        self.assertEqual(date, dt.datetime(2014, 1, 5, 13, 0))
+        self.assertEqual(date, dt.datetime(2014, 1, 5, 11, 0))
 
         # Get all time series data and check it
         hts = self.client.read_tsdata(
@@ -163,7 +165,7 @@ class EndToEndTestCase(TestCase):
                 hts.data.index = hts.data.index.tz_convert(dt.timezone.utc)
         except AttributeError:
             pass
-        pd.testing.assert_frame_equal(hts.data, test_timeseries_hts.data)
+        self.assert_frame_loosely_equal(hts.data, test_timeseries_htimeseries.data)
 
         # The other attributes should have been set too.
         self.assertTrue(hasattr(hts, "variable"))
@@ -173,16 +175,16 @@ class EndToEndTestCase(TestCase):
             tmp_station_id,
             self.timeseries_group_id,
             self.timeseries_id,
-            start_date=dt.datetime(2014, 1, 3, 8, 0, tzinfo=dt.timezone.utc),
-            end_date=dt.datetime(2014, 1, 4, 8, 0, tzinfo=dt.timezone.utc),
+            start_date=dt.datetime(2014, 1, 3, 8, 0, tzinfo=UTC_PLUS_2),
+            end_date=dt.datetime(2014, 1, 4, 8, 0, tzinfo=UTC_PLUS_2),
             timezone="Etc/GMT-1",
         )
         expected_result = HTimeseries(
             StringIO(
                 textwrap.dedent(
                     """\
-                    2014-01-03 09:00,13.0,
-                    2014-01-04 09:00,14.0,
+                    2014-01-03 07:00,13.0,
+                    2014-01-04 07:00,14.0,
                     """
                 )
             ),

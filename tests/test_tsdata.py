@@ -1,23 +1,26 @@
 import datetime as dt
+from copy import copy
 from io import StringIO
 from unittest import TestCase
 
-import pandas as pd
 import requests
 from htimeseries import HTimeseries
 
 from enhydris_api_client import EnhydrisApiClient
 
 from . import (
+    AssertFrameEqualMixin,
     mock_session,
     test_timeseries_csv,
     test_timeseries_csv_bottom,
-    test_timeseries_hts,
+    test_timeseries_htimeseries,
 )
 
+TEST_TIMESERIES_HTS = f"Timezone=+0200\r\n\r\n{test_timeseries_csv}"
 
-@mock_session(**{"get.return_value.text": test_timeseries_csv})
-class ReadTsDataTestCase(TestCase):
+
+@mock_session(**{"get.return_value.text": TEST_TIMESERIES_HTS})
+class ReadTsDataTestCase(TestCase, AssertFrameEqualMixin):
     url = "http://example.com/api/stations/41/timeseriesgroups/42/timeseries/43/data/"
 
     def _read_tsdata(self, **extra_args):
@@ -32,13 +35,13 @@ class ReadTsDataTestCase(TestCase):
                 "fmt": "hts",
                 "start_date": None,
                 "end_date": None,
-                "timezone": "UTC",
+                "timezone": None,
             },
         )
 
     def test_returns_data(self, m):
         ahts = self._read_tsdata()
-        pd.testing.assert_frame_equal(ahts.data, test_timeseries_hts.data)
+        self.assert_frame_equal(ahts.data, test_timeseries_htimeseries.data)
 
     def test_uses_timezone(self, m):
         self._read_tsdata(timezone="UTC")
@@ -53,8 +56,8 @@ class ReadTsDataTestCase(TestCase):
         )
 
 
-class ReadTsDataWithStartAndEndDateTestCase(TestCase):
-    @mock_session(**{"get.return_value.text": test_timeseries_csv})
+class ReadTsDataWithStartAndEndDateTestCase(TestCase, AssertFrameEqualMixin):
+    @mock_session(**{"get.return_value.text": TEST_TIMESERIES_HTS})
     def setUp(self, mock_requests_session):
         self.mock_requests_session = mock_requests_session
         self.client = EnhydrisApiClient("https://mydomain.com")
@@ -75,15 +78,15 @@ class ReadTsDataWithStartAndEndDateTestCase(TestCase):
             "data/",
             params={
                 "fmt": "hts",
-                "start_date": "2019-06-12T00:00:00",
-                "end_date": "2019-06-13T15:25:00",
-                "timezone": "UTC",
+                "start_date": "2019-06-12T00:00:00+00:00",
+                "end_date": "2019-06-13T15:25:00+00:00",
+                "timezone": None,
             },
         )
 
     def test_returns_data(self):
         self._make_request(dt.timezone.utc, dt.timezone.utc)
-        pd.testing.assert_frame_equal(self.data.data, test_timeseries_hts.data)
+        self.assert_frame_equal(self.data.data, test_timeseries_htimeseries.data)
 
     def test_checks_that_start_date_is_aware(self):
         with self.assertRaises(ValueError):
@@ -94,12 +97,12 @@ class ReadTsDataWithStartAndEndDateTestCase(TestCase):
             self._make_request(dt.timezone.utc, None)
 
 
-class ReadEmptyTsDataTestCase(TestCase):
+class ReadEmptyTsDataTestCase(TestCase, AssertFrameEqualMixin):
     @mock_session(**{"get.return_value.text": ""})
     def test_returns_data(self, mock_requests_session):
         self.client = EnhydrisApiClient("https://mydomain.com")
         self.data = self.client.read_tsdata(41, 42, 43)
-        pd.testing.assert_frame_equal(self.data.data, HTimeseries().data)
+        self.assert_frame_equal(self.data.data, HTimeseries().data)
 
 
 class ReadTsDataErrorTestCase(TestCase):
@@ -114,11 +117,11 @@ class PostTsDataTestCase(TestCase):
     @mock_session()
     def test_makes_request(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
-        if hasattr(test_timeseries_hts, "timezone"):
-            del test_timeseries_hts.timezone
-        client.post_tsdata(41, 42, 43, test_timeseries_hts)
+        client.post_tsdata(41, 42, 43, test_timeseries_htimeseries)
         f = StringIO()
-        test_timeseries_hts.data.to_csv(f, header=False)
+        data = copy(test_timeseries_htimeseries.data)
+        data.index = data.index.tz_convert("UTC")
+        data.to_csv(f, header=False)
         mock_requests_session.return_value.post.assert_called_once_with(
             "https://mydomain.com/api/stations/41/timeseriesgroups/42/timeseries/43/"
             "data/",
@@ -129,7 +132,7 @@ class PostTsDataTestCase(TestCase):
     def test_raises_exception_on_error(self, mock_requests_session):
         client = EnhydrisApiClient("https://mydomain.com")
         with self.assertRaises(requests.HTTPError):
-            client.post_tsdata(41, 42, 43, test_timeseries_hts)
+            client.post_tsdata(41, 42, 43, test_timeseries_htimeseries)
 
 
 @mock_session(**{"get.return_value.text": test_timeseries_csv_bottom})
@@ -142,7 +145,7 @@ class GetTsEndDateTestCase(TestCase):
 
     def test_makes_request(self, m):
         self._get_ts_end_date()
-        m.return_value.get.assert_called_once_with(self.url, params={"timezone": "UTC"})
+        m.return_value.get.assert_called_once_with(self.url, params={"timezone": None})
 
     def test_returns_date(self, m):
         result = self._get_ts_end_date()

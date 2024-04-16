@@ -1,8 +1,10 @@
 import datetime as dt
 import textwrap
+from copy import copy
 from io import StringIO
 from unittest import mock
 
+import pandas as pd
 import requests
 from htimeseries import HTimeseries
 
@@ -15,8 +17,8 @@ test_timeseries_csv = textwrap.dedent(
     2014-01-05 08:00,15.0,
     """
 )
-test_timeseries_hts = HTimeseries(
-    StringIO(test_timeseries_csv), default_tzinfo=dt.timezone.utc
+test_timeseries_htimeseries = HTimeseries(
+    StringIO(test_timeseries_csv), default_tzinfo=dt.timezone(dt.timedelta(hours=2))
 )
 test_timeseries_csv_top = "".join(test_timeseries_csv.splitlines(keepends=True)[:-1])
 test_timeseries_csv_bottom = test_timeseries_csv.splitlines(keepends=True)[-1]
@@ -45,3 +47,18 @@ def mock_session(**kwargs):
     for old_key in list(kwargs.keys()):
         kwargs["return_value." + old_key] = kwargs.pop(old_key)
     return mock.patch("requests.Session", **kwargs)
+
+
+class AssertFrameEqualMixin:
+    def assert_frame_equal(self, actual, expected):
+        self.assertEqual(
+            actual.index.tz.utcoffset(None), expected.index.tz.utcoffset(None)
+        )
+        pd.testing.assert_frame_equal(actual, expected, check_index_type=False)
+
+    def assert_frame_loosely_equal(self, actual, expected):
+        actual = copy(actual)
+        expected = copy(expected)
+        actual.index = actual.index.tz_convert("UTC")
+        expected.index = expected.index.tz_convert("UTC")
+        pd.testing.assert_frame_equal(actual, expected)
